@@ -122,7 +122,7 @@ def _initialize_videos_(seg_size, dataset, rng_seed):
             print("Wrong video " + str(t))
         videos.append(video_data)
 
-    return videos, W, alpha
+    return videos, W, alpha, inds_te, inds_tr
 
 
 class SeqDppLinear:
@@ -133,7 +133,7 @@ class SeqDppLinear:
         self.seg_size = 10
         self.inf_type = 'exact'
         self.C = np.inf
-        self.videos, self.W, self.alpha = _initialize_videos_(self.seg_size, dataset, self.rng_seed)
+        self.videos, self.W, self.alpha, self.inds_te, self.inds_tr = _initialize_videos_(self.seg_size, dataset, self.rng_seed)
 
     # INPUT
     #    videos[k].fts: frames-by-dim
@@ -146,23 +146,24 @@ class SeqDppLinear:
         cG = []
         # Labeled subsets
         cY = []
-        for i in range(len(self.videos)):
-            cXi = self.videos[i].fts
+        training_videos = [self.videos[i] for i in self.inds_tr]
+        for i in range(len(training_videos)):
+            cXi = training_videos[i].fts
             cGi = []
-            ciGrounds = self.videos[i].grounds
+            ciGrounds = training_videos[i].grounds
             for j in range(len(ciGrounds)):
-                cGij = _map_ids_(self.videos[i].ids, ciGrounds[j])
+                cGij = _map_ids_(training_videos[i].ids, ciGrounds[j])
                 cGi.append(cGij)
             cYi = []
-            cYs = self.videos[i].Ys
+            cYs = training_videos[i].Ys
             for k in range(len(cYs)):
-                cYik = _map_ids_(self.videos[i].ids, cYs[k])
+                cYik = _map_ids_(training_videos[i].ids, cYs[k])
                 cYi.append(cYik)
             cX.append(cXi)
             cY.append(cYi)
             cG.append(cGi)
 
-        _, n = self.videos[0].fts.shape
+        _, n = training_videos[0].fts.shape
         m = int(np.size(self.W) / n)
 
         theta_reg = np.zeros((m, n))
@@ -200,21 +201,21 @@ class SeqDppLinear:
         # print("Processing videos : ")
 
         f = 0
-        GW = np.zeros((m, n))
+        # GW = np.zeros((m, n))
         galpha = 0
         for k in range(len(cX)):
             [fk, gWk, gAk] = self._compute_fg_one_data_(W, alpha, cX[k], cG[k], cY[k])
             f = f - fk
-            GW = GW - gWk
-            galpha = galpha - gAk
+            # GW = GW - gWk
+            # galpha = galpha - gAk
 
-        g = GW
-        g = np.hstack((np.array(g).flatten(), galpha[0, 0]))
+        # g = GW
+        # g = np.hstack((np.array(g).flatten(), galpha[0, 0]))
 
         if C != np.inf:
             diff = W.flatten() - theta_reg.flatten()
             f = C * f + 0.5 * (diff.conj().transpose() @ diff)
-            g = C * g + np.hstack((diff, 0))
+            # g = C * g + np.hstack((diff, 0))
 
         return f
 
@@ -250,12 +251,12 @@ class SeqDppLinear:
             J = np.log(np.linalg.det(L[0:len(Y), 0:len(Y)])) - np.log(np.linalg.det(L + Iv))
 
             # Compute gradients
-            [g, gA] = self._compute_g_(W, X[0:len(V), :], L, Y, Iv)
+            # [g, gA] = self._compute_g_(W, X[0:len(V), :], L, Y, Iv)
 
             # overall
             f = f + J
-            gW = gW + g
-            galpha = galpha + gA
+            # gW = gW + g
+            # galpha = galpha + gA
 
         return f, gW, galpha
 
@@ -276,7 +277,7 @@ class SeqDppLinear:
 
         return g, gA
 
-    def _test_dpp_inside_(self, videos, W, alpha, Ls, inf_type):
+    def test_dpp_inside(self, videos, W, alpha, inf_type):
         Ls = []
         for i in range(len(videos)):
             print("TestDPP : " + str(i))
