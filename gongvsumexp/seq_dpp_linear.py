@@ -167,10 +167,16 @@ class SeqDppLinear:
 
         theta_reg = np.zeros((m, n))
 
+        print("------------------------------------------------------------------------------------------")
+        print("OPTIMIZATION BEGINS!!")
+
         # Minimize hinge loss
         theta0 = np.hstack((self.W.flatten(), self.alpha))
         options = {'disp':99, 'maxiter':500, 'maxfun': 500, 'gtol': 1e-10, 'ftol': 1e-10, 'iprint':99}
         result = opt.minimize(self._compute_fg_, theta0, tol=1e-6, args=(cX, cG, cY, self.C, theta_reg), method='L-BFGS-B', options=options)
+
+        print("OPTIMIZATION ENDS!!")
+        print("------------------------------------------------------------------------------------------")
 
         theta = result.x
         # Recover W, V, alpha
