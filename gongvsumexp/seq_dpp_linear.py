@@ -17,10 +17,10 @@ class DataElement:
     def __init__(self):
         pass
 
-    # Some functions to be implemented
+    # Some func to be implemented
 
 
-# Some functions and data storage elements
+# Some func and data storage elements
 # 1. ids
 # 2. grounds
 # 3. Ys
