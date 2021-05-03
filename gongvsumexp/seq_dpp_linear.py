@@ -180,6 +180,9 @@ class SeqDppLinear:
         print("------------------------------------------------------------------------------------------")
 
         theta = result.x
+
+        np.savetxt('theta.csv', np.array(theta), delimiter=',')
+
         # Recover W, V, alpha
         alpha = max(theta[len(theta)-1], 1e-6)
         W = theta[:len(theta)-1]

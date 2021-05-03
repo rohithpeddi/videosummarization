@@ -301,7 +301,7 @@ def learnSubmodularMixture(training_data, submod_shells, loss_fun, params=None, 
         start_time = time.time()
 
         if it == 0:
-            w.append(w_0);
+            w.append(w_0)
         else:
             w.append(w[it - 1])
 
