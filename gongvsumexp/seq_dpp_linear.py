@@ -173,7 +173,7 @@ class SeqDppLinear:
 
         # Minimize hinge loss
         theta0 = np.hstack((self.W.flatten(), self.alpha))
-        options = {'disp':99, 'maxiter':500, 'maxfun': 500, 'gtol': 1e-10, 'ftol': 1e-10, 'iprint':99}
+        options = {'disp':99, 'maxiter':500, 'maxfun': 2000, 'gtol': 1e-10, 'ftol': 1e-10, 'iprint':99}
         result = opt.minimize(self._compute_fg_, theta0, tol=1e-6, args=(cX, cG, cY, self.C, theta_reg), method='L-BFGS-B', options=options)
 
         print("OPTIMIZATION ENDS!!")
@@ -183,7 +183,7 @@ class SeqDppLinear:
         # Recover W, V, alpha
         alpha = max(theta[len(theta)-1], 1e-6)
         W = theta[:len(theta)-1]
-        W = np.reshape(W, m, n)
+        W = np.reshape(W, (m, n))
 
         fval = self._compute_fg_(theta, cX, cG, cY, C, theta_reg)
 
@@ -288,9 +288,9 @@ class SeqDppLinear:
     def _predictY_inside_(self, video, W, L, alpha, inf_type):
 
         # TODO : For all matrix transpose do conjugate transpose
-        if not bool(L):
+        if len(L) == 0:
             X = video.fts
-            WW = np.dot(W.T, W)
+            WW = np.dot(W.conj().transpose(), W)
             L = np.dot(X, np.dot(WW, X.T)) + alpha * np.identity(len(X))
 
         # Correct for numerical errors
@@ -306,11 +306,13 @@ class SeqDppLinear:
         Y_record = []
         for t in range(1, len(Gs)):
             V = np.concatenate((Y[t - 1], Gs[t]), axis=0)
-            VY, V_ind, Y_loc = np.intersect1d(V, Y[t - 1], return_indices=True)
-            VGs, V_ind, Gs_loc = np.intersect1d(V, Gs[t - 1], return_indices=True)
+            VY, V_ind, Y_ind_t = np.intersect1d(V, Y[t - 1], return_indices=True)
+            Y_loc = V_ind
+            VGs, V_ind, Gs_ind_t = np.intersect1d(V, Gs[t], return_indices=True)
+            Gs_loc = V_ind
 
-            L_window = L[0:len(V)][0:len(V)]
-            Yz = np.zeros(len(Y[t - 1]))
+            L_window = L[0:len(V), 0:len(V)]
+            Yz = np.zeros((len(Y[t - 1]), len(Y[t - 1])))
             Gso = np.eye(len(Gs[t]))
             Iv = block_diag(Yz, Gso)
 
@@ -340,15 +342,15 @@ class SeqDppLinear:
                         Y_record = V[Gs_loc[whichs[best_comb]]].T
                     else:
                         Y_record = np.concatenate((Y_record, V[Gs_loc[select_loc_Gs]].T), axis=1)
-            else:
-                L_cond = np.linalg.inv(L_window + Iv)
-                L_cond = np.linalg.inv(L_cond[0:len(Gs_loc)][0:len(Gs_loc)]) - np.eye(len(Gs_loc))
-                select_loc_Gs = _greedy_sym_(L_cond)
-                Y[t] = V[Gs_loc[select_loc_Gs]]
-                if not bool(Y_record):
-                    Y_record = V[Gs_loc[select_loc_Gs]].T
-                else:
-                    Y_record = np.concatenate((Y_record, V[Gs_loc[select_loc_Gs]].T), axis=1)
+            # else:
+            #     L_cond = np.linalg.inv(L_window + Iv)
+            #     L_cond = np.linalg.inv(L_cond[0:len(Gs_loc)][0:len(Gs_loc)]) - np.eye(len(Gs_loc))
+            #     select_loc_Gs = _greedy_sym_(L_cond)
+            #     Y[t] = V[Gs_loc[select_loc_Gs]]
+            #     if not bool(Y_record):
+            #         Y_record = V[Gs_loc[select_loc_Gs]].T
+            #     else:
+            #         Y_record = np.concatenate((Y_record, V[Gs_loc[select_loc_Gs]].T), axis=1)
 
         Y_record = np.sort(np.unique(Y_record))
         return Y, Y_record, L
