@@ -42,7 +42,7 @@ class St(utilities.DataElement):
         return np.multiply(d, d)
 
 weights = []
-for it in range(100):
+for it in range(10):
     training_examples = []
     counter = 0
     for f in listdir(directoryPath):
@@ -53,7 +53,7 @@ for it in range(100):
                 # if counter >= 5:
                 #     break
                 counter += 1
-                print(counter)
+                # print(counter)
                 mfile = loadmat(join(directoryPath, f))
                 video_id = f[:-4]
                 frames, numUsers = mfile['user_score'].shape
@@ -98,7 +98,7 @@ for it in range(100):
 
 
 weights = np.array(weights)
-fin_weights = np.sum(weights, axis=1)/100
+fin_weights = np.sum(weights, axis=1)/10
 print(fin_weights)
 
 
