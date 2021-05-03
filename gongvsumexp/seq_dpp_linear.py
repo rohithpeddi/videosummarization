@@ -184,6 +184,8 @@ class SeqDppLinear:
         np.savetxt('theta.csv', np.array(theta), delimiter=',')
 
         # Recover W, V, alpha
+        alpha = theta[len(theta)-1]
+        print("Found alpha :" + str(alpha))
         alpha = max(theta[len(theta)-1], 1e-6)
         W = theta[:len(theta)-1]
         W = np.reshape(W, (m, n))
@@ -238,11 +240,15 @@ class SeqDppLinear:
         gW = np.zeros((m, n))
         galpha = 0
         for t in range(1, len(Gs)):
-            Y = np.hstack((np.array(Ys[t - 1]).flatten(), np.array(Ys[t]).flatten()))
-            V = np.hstack((np.array(Ys[t - 1]).flatten(), np.array(Gs[t]).flatten()))
+            if len(Ys[t-1]) == 0:
+                Y = np.array(Ys[t]).flatten()
+                V = np.array(Gs[t]).flatten()
+            else:
+                Y = np.concatenate((np.array(Ys[t - 1]).flatten(), np.array(Ys[t]).flatten()), axis=0)
+                V = np.concatenate((np.array(Ys[t - 1]).flatten(), np.array(Gs[t]).flatten()), axis=0)
             VY, V_ind, Y_ind = np.intersect1d(V, Y, return_indices=True)
             Y = V_ind
-            L = LL[0:len(V), 0:len(V)] + alpha * np.eye(len(V))
+            L = LL[np.ix_(V, V)] + alpha * np.eye(len(V))
 
             # Fix numerical issues
             L = (L + L.conj().transpose()) / 2
@@ -251,7 +257,7 @@ class SeqDppLinear:
             Iv = block_diag(Ysz, Gso)
 
             # Compute function value
-            J = np.log(np.linalg.det(L[0:len(Y), 0:len(Y)])) - np.log(np.linalg.det(L + Iv))
+            J = np.log(np.linalg.det(L[np.ix_(Y, Y)])) - np.log(np.linalg.det(L + Iv))
 
             # Compute gradients
             # [g, gA] = self._compute_g_(W, X[0:len(V), :], L, Y, Iv)
@@ -296,7 +302,7 @@ class SeqDppLinear:
             L = np.dot(X, np.dot(WW, X.conj().transpose())) + alpha * np.identity(len(X))
 
         # Correct for numerical errors
-        L = (L + L.T) / 2
+        L = (L + L.conj().transpose()) / 2
         # For dummy video segment
         Gs = [[]]
         for n in range(len(video.grounds)):
