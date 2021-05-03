@@ -6,7 +6,6 @@ from scipy.io import loadmat
 import scipy.spatial.distance as dist
 from chainer import serializers
 
-from Project.videosummarization.gyglivsumexp.submodular_mixtures.func import functions
 from feature_extractor.Chain import vid_enc, vid_enc_vgg19
 from feature_extractor.Chain import sampling
 from feature_extractor.Chain import summarize
