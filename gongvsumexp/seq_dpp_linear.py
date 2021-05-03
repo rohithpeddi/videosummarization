@@ -284,17 +284,16 @@ class SeqDppLinear:
         Ls = []
         for i in range(len(videos)):
             print("TestDPP : " + str(i))
-            [videos[i].YpredSeq, videos[i].Ypred, Lsi] = self._predictY_inside_(videos(i), W, [], alpha, inf_type)
+            [videos[i].YpredSeq, videos[i].Ypred, Lsi] = self._predictY_inside_(videos[i], W, [], alpha, inf_type)
             Ls.append(Lsi)
         return videos, Ls
 
     def _predictY_inside_(self, video, W, L, alpha, inf_type):
 
-        # TODO : For all matrix transpose do conjugate transpose
         if len(L) == 0:
             X = video.fts
             WW = np.dot(W.conj().transpose(), W)
-            L = np.dot(X, np.dot(WW, X.T)) + alpha * np.identity(len(X))
+            L = np.dot(X, np.dot(WW, X.conj().transpose())) + alpha * np.identity(len(X))
 
         # Correct for numerical errors
         L = (L + L.T) / 2
@@ -305,46 +304,53 @@ class SeqDppLinear:
             Gs.append(Gsn)
 
         # For recording predicted results
-        Y = []
+        Y = [[]]
         Y_record = []
         for t in range(1, len(Gs)):
-            V = np.concatenate((Y[t - 1], Gs[t]), axis=0)
+            if len(Y[t-1]) == 0:
+                V = Gs[t]
+            else:
+                V = np.concatenate((Y[t - 1], Gs[t]), axis=0)
             VY, V_ind, Y_ind_t = np.intersect1d(V, Y[t - 1], return_indices=True)
             Y_loc = V_ind
             VGs, V_ind, Gs_ind_t = np.intersect1d(V, Gs[t], return_indices=True)
             Gs_loc = V_ind
 
-            L_window = L[0:len(V), 0:len(V)]
+            L_window = L[np.ix_(V, V)]
             Yz = np.zeros((len(Y[t - 1]), len(Y[t - 1])))
             Gso = np.eye(len(Gs[t]))
             Iv = block_diag(Yz, Gso)
 
             if inf_type == 'exact':
                 whichs = []
-                a_list = list(range(1, len(Gs[t])))
-                for r in range(min(10, len(Gs[t])) + 1):
+                a_list = list(range(0, len(Gs[t])))
+                for r in range(1, min(11, len(Gs[t])) + 1):
                     combinations_object = itertools.combinations(a_list, r)
                     combinations_list = list(combinations_object)
                     whichs += combinations_list
 
                 # Starting with empty set
-                best_comb = 0
-                best_J = np.linalg.det(L_window[0:len(Y_loc)][0:len(Y_loc)]) / np.linalg.det(L_window + Iv)
+                best_comb = -1
+                best_J = np.linalg.det(L_window[np.ix_(Y_loc, Y_loc)]) / np.linalg.det(L_window + Iv)
 
                 # Brute force for each subset of Gs[t]
                 for at_comb in range(len(whichs)):
-                    YG_loc = np.concatenate((Y_loc, Gs_loc[whichs[at_comb]]))
-                    J = np.linalg.det(L_window[0:len(YG_loc)][0:len(YG_loc)]) / np.linalg.det(L_window + Iv)
+                    YG_loc = np.concatenate((Y_loc, [Gs_loc[i] for i in list(whichs[at_comb])]), axis=0)
+                    J = np.linalg.det(L_window[np.ix_(YG_loc, YG_loc)]) / np.linalg.det(L_window + Iv)
                     if J > best_J:
                         best_J = J
                         best_comb = at_comb
 
-                if best_comb != 0:
-                    Y[t] = V[Gs_loc[whichs[best_comb]]]
-                    if not bool(Y_record):
-                        Y_record = V[Gs_loc[whichs[best_comb]]].T
+                Y_t = []
+                if best_comb != -1:
+                    Y_t = np.array([V[j] for j in [Gs_loc[i] for i in list(whichs[best_comb])]])
+                    Y.append(Y_t)
+                    if len(Y_record) == 0:
+                        Y_record = Y_t.conj().transpose()
                     else:
-                        Y_record = np.concatenate((Y_record, V[Gs_loc[select_loc_Gs]].T), axis=1)
+                        Y_record = np.concatenate((Y_record, Y_t.conj().transpose()), axis=0)
+                else:
+                    Y.append(Y_t)
             # else:
             #     L_cond = np.linalg.inv(L_window + Iv)
             #     L_cond = np.linalg.inv(L_cond[0:len(Gs_loc)][0:len(Gs_loc)]) - np.eye(len(Gs_loc))
