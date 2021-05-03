@@ -51,9 +51,10 @@ for f in listdir(directoryPath):
         mfile = loadmat(join(directoryPath, f))
         video_id = f[:-4]
         frames, numUsers = mfile['user_score'].shape
+        randUserList = np.random.sample(range(0, len(numUsers)+1), 5)
         # randUser = np.random.randint(numUsers)
         # user = randUser
-        for user in range(numUsers):
+        for user in randUserList:
             y_gt = mfile['user_score'][:, user]
             print("Creating data for " + str(video_id) + ' with user summary ' + str(user))
             features = np.load(datasetRoot + 'feat/vgg/' + video_id + '.npy').astype(np.float32)
