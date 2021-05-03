@@ -52,7 +52,7 @@ for f in listdir(directoryPath):
         mfile = loadmat(join(directoryPath, f))
         video_id = f[:-4]
         frames, numUsers = mfile['user_score'].shape
-        randUserList = random.sample(range(0, len(numUsers)+1), 5)
+        randUserList = random.sample(range(0, numUsers + 1), 5)
         # randUser = np.random.randint(numUsers)
         # user = randUser
         for user in randUserList:
