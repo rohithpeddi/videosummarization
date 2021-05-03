@@ -7,8 +7,6 @@ import scipy.spatial.distance as dist
 from chainer import serializers
 
 from feature_extractor.Chain import vid_enc, vid_enc_vgg19
-from feature_extractor.Chain import sampling
-from feature_extractor.Chain import summarize
 from submodular_mixtures.utils import utilities
 from submodular_mixtures.func import functions
 from submodular_mixtures.utils.obj import objectives as obj
