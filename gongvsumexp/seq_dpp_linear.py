@@ -173,7 +173,7 @@ class SeqDppLinear:
 
         # Minimize hinge loss
         theta0 = np.hstack((self.W.flatten(), self.alpha))
-        options = {'disp':99, 'maxiter':500, 'maxfun': 2000, 'gtol': 1e-10, 'ftol': 1e-10, 'iprint':99}
+        options = {'disp':99, 'maxiter':500, 'maxfun': 200000, 'gtol': 1e-10, 'ftol': 1e-10, 'iprint':99}
         result = opt.minimize(self._compute_fg_, theta0, tol=1e-6, args=(cX, cG, cY, self.C, theta_reg), method='L-BFGS-B', options=options)
 
         print("OPTIMIZATION ENDS!!")
@@ -185,7 +185,7 @@ class SeqDppLinear:
         W = theta[:len(theta)-1]
         W = np.reshape(W, (m, n))
 
-        fval = self._compute_fg_(theta, cX, cG, cY, C, theta_reg)
+        fval = self._compute_fg_(theta, cX, cG, cY, self.C, theta_reg)
 
         return W, alpha, fval
 
