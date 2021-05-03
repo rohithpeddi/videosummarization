@@ -65,16 +65,16 @@ label = summarize.get_flabel(frames, fnum, fps, seg_l=5)
 # print(skvideo.getFFmpegPath())
 
 
-video_path = 'D:/UTD/SEM4/RIYER/Project/videosummarization/summe/videos/'+ v_id + '.webm'
+video_path = 'summe/videos/'+ v_id + '.webm'
 
 video_data = skio.vread(video_path)
 sum_vid = video_data[label.ravel().astype(np.bool), :,:,:]
 (d1, d2, d3, d4) = sum_vid.shape
 
-print('writing video to', 'D:/UTD/SEM4/RIYER/Project/videosummarization/' + 'sum_'+ v_id + '.mp4')
+print('writing video to', out_dir + 'sum_'+ v_id + '.mp4')
 # skio.vwrite('D:/UTD/SEM4/RIYER/Project/videosummarization/' + 'sum_'+ v_id + '.mp4', sum_vid)
 
-writer = skvideo.io.FFmpegWriter('D:/UTD/SEM4/RIYER/Project/videosummarization/' + 'sum_'+ v_id + '.mp4')
+writer = skvideo.io.FFmpegWriter(out_dir + 'sum_'+ v_id + '.mp4')
 for i in range(d1):
     # print("Writing frame : " + str(i))
     writer.writeFrame(sum_vid[i, :, :, :])
