@@ -22,6 +22,27 @@ def uniformity_shell(sumData):
     return lambda selectedIndices: (1 - kmedoid_loss(selectedIndices, distanceMatrix, float(normalizer)))
 
 
+def uniformity(S):
+    '''
+    Based on representativeness_shell implementation in 'example_objectives.py'
+    :input S: DataElement with function getChrDistances()
+    :return: uniformity objective
+    '''
+    tempDMat = S.getChrDistances()
+    norm = tempDMat.mean()
+    return (lambda X: (1 - kmedoid_loss(X, tempDMat, float(norm))))
+
+
+def representativeness(S):
+    '''
+    Based on representativeness_shell implementation in 'example_objectives.py'
+    :input S: DataElement with function getDistances()
+    :return: representativeness objective
+    '''
+    tempDMat = S.getDistances()
+    norm = tempDMat.mean()
+    return (lambda X: (1 - kmedoid_loss(X, tempDMat, float(norm))))
+
 def kmedoid_loss(selectedIndices, distanceMatrix, norm):
     '''
     :param selectedIndices: selected indices
@@ -79,3 +100,4 @@ def earliness_shell(sumData):
     :return: earliness objective
     '''
     return lambda selectedIndices: (np.max(sumData.Y) * len(selectedIndices) - np.sum(sumData.Y[selectedIndices])) / float(sumData.budget * np.max(sumData.Y))
+
