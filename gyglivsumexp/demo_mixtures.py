@@ -41,55 +41,67 @@ class St(utilities.DataElement):
         d = dist.squareform(self.dist_c)
         return np.multiply(d, d)
 
-training_examples = []
-counter = 0
-for f in listdir(directoryPath):
-    if isfile(join(directoryPath, f)):
-        # if counter >= 5:
-        #     break
-        counter += 1
-        print(counter)
-        mfile = loadmat(join(directoryPath, f))
-        video_id = f[:-4]
-        frames, numUsers = mfile['user_score'].shape
-        randUserList = random.sample(range(0, numUsers + 1), 5)
-        # randUser = np.random.randint(numUsers)
-        # user = randUser
-        for user in randUserList:
-            y_gt = mfile['user_score'][:, user]
-            print("Creating data for " + str(video_id) + ' with user summary ' + str(user))
-            features = np.load(datasetRoot + 'feat/vgg/' + video_id + '.npy').astype(np.float32)
-            nFrames = mfile['nFrames'].flatten()[0]
-            img_id = list(range(nFrames))
-            seg_size = 5
-            segs = [img_id[i:i + seg_size] for i in range(len(img_id) - seg_size + 1)]
-            segs = functools.reduce(lambda x, Y: x + Y, segs)
-            x = features[segs]
-            enc_x = model(x)
-            x = enc_x.data
-            features_length = len(x)
+weights = []
+for it in range(100):
+    training_examples = []
+    counter = 0
+    for f in listdir(directoryPath):
+        if isfile(join(directoryPath, f)):
+            if np.random.random() > 0.5:
+                continue
+            else:
+                # if counter >= 5:
+                #     break
+                counter += 1
+                print(counter)
+                mfile = loadmat(join(directoryPath, f))
+                video_id = f[:-4]
+                frames, numUsers = mfile['user_score'].shape
+                randUserList = random.sample(range(0, numUsers), 1)
+                # randUser = np.random.randint(numUsers)
+                # user = randUser
+                for user in randUserList:
+                    y_gt = mfile['user_score'][:, user]
+                    # print("Creating data for " + str(video_id) + ' with user summary ' + str(user))
+                    features = np.load(datasetRoot + 'feat/vgg/' + video_id + '.npy').astype(np.float32)
+                    nFrames = mfile['nFrames'].flatten()[0]
+                    img_id = list(range(nFrames))
+                    seg_size = 5
+                    segs = [img_id[i:i + seg_size] for i in range(len(img_id) - seg_size + 1)]
+                    segs = functools.reduce(lambda x, Y: x + Y, segs)
+                    x = features[segs]
+                    enc_x = model(x)
+                    x = enc_x.data
+                    features_length = len(x)
 
-            diff = np.abs(len(y_gt) - features_length)
-            y_gt = y_gt[diff:]
-            Y = np.ones(len(y_gt))
+                    diff = np.abs(len(y_gt) - features_length)
+                    y_gt = y_gt[diff:]
+                    Y = np.ones(len(y_gt))
 
-            video_duration = mfile['video_duration'].flatten()[0]
-            budget = int(0.15 * video_duration / seg_size)
-            S = St(budget, x, Y, y_gt)
-            training_examples.append(S)
+                    video_duration = mfile['video_duration'].flatten()[0]
+                    budget = int(0.15 * video_duration / seg_size)
+                    S = St(budget, x, Y, y_gt)
+                    training_examples.append(S)
 
-print("Finished creation of training data")
-# Learn the weights. Given that we used the k-medoid results as ground truth, this objective should get all the weight
-shells=[obj.representativeness, obj.representativeness, obj.uniformity, obj.random_shell]
-loss = obj.intersect_complement_loss
+    print("Finished creation of training data")
+    # Learn the weights. Given that we used the k-medoid results as ground truth, this objective should get all the weight
+    shells=[obj.representativeness, obj.representativeness, obj.uniformity, obj.random_shell]
+    loss = obj.intersect_complement_loss
 
-# Use AdaGrad and a l-1 semiball projection (leads to sparser solutions, i.e. is more robust to noise)
-params = utilities.SGDparams(use_l1_projection=True,max_iter=10,use_ada_grad=True)
+    # Use AdaGrad and a l-1 semiball projection (leads to sparser solutions, i.e. is more robust to noise)
+    params = utilities.SGDparams(use_l1_projection=True,max_iter=10,use_ada_grad=True)
 
-print("Started learning mixture weights")
-learnt_weights,_ = functions.learnSubmodularMixture(training_examples, shells,loss,params=params)
+    print("Started learning mixture weights:  " + str(it))
+    learnt_weights, _ = functions.learnSubmodularMixture(training_examples, shells,loss,params=params)
+    weights.append(learnt_weights)
+    print("Finished learning mixture weights")
 
-print("Finished learning mixture weights")
+
+weights = np.array(weights)
+fin_weights = np.sum(weights, axis=1)/100
+print(fin_weights)
+
+
 
 
 
