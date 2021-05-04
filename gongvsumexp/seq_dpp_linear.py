@@ -5,6 +5,8 @@ import itertools
 import os
 import cv2
 import scipy.optimize as opt
+import subprocess
+import shutil
 
 
 ###############################################################
@@ -134,6 +136,11 @@ class SeqDppLinear:
         self.inf_type = 'exact'
         self.C = np.inf
         self.videos, self.W, self.alpha, self.inds_te, self.inds_tr = _initialize_videos_(self.seg_size, dataset, self.rng_seed)
+
+        if dataset == 'OVP':
+            self.OVP_YouTube_index = list(range(21, 71))
+        elif dataset == 'Youtube':
+            self.OVP_YouTube_index = list(range(11, 21)) + list(range(71, 110))
 
     # INPUT
     #    videos[k].fts: frames-by-dim
@@ -370,105 +377,112 @@ class SeqDppLinear:
         Y_record = np.sort(np.unique(Y_record))
         return Y, Y_record, L
 
-    def _seqDPP_evaluate(self, videos_te, inds_te, num_order, approach_name, dataset):
-        self._kill_seqDPP_(approach_name, inds_te, dataset)
-        self._make_folder_oracle_(videos_te, approach_name, inds_te, dataset)
-        O_S_detail, _ = self._comparison_seqDPP_(approach_name, num_order, inds_te, dataset)
+    def seqDPP_evaluate(self, videos_te, inds_te, num_order, approach_name):
+        self._kill_seqDPP_(approach_name, inds_te)
+        self._make_folder_oracle_(videos_te, approach_name, inds_te)
+        approaches_list = [approach_name]
+        O_S_detail, _ = self._comparison_seqDPP_(approaches_list, num_order, inds_te)
         _, True_RP, True_F1 = self._sample_seqdpp_comp_(O_S_detail)
         res = np.hstack((True_F1, True_RP))
         return res
 
-    def _kill_seqDPP_(self, appraoch_name, te_inds, dataset):
-        foldername = '../data/OVP_YouTube_cmp'
-        if dataset == 'OVP':
-            OVP_YouTube_index = list(range(21, 71))
-        elif dataset == 'YouTube':
-            OVP_YouTube_index = list(range(11, 21)) + list(range(71, 110))
-        for n in range(len(te_inds)):
-            videoname = 'v' + OVP_YouTube_index[te_inds[n]]
-            if os.path.isdir(foldername + '/' + videoname + '/' + appraoch_name):
-                print("Removed : " + foldername + '/' + videoname + '/' + appraoch_name)
-                os.remove(foldername + '/' + videoname + '/' + appraoch_name)
+    def _kill_seqDPP_(self, approach_name, inds_te):
+        folderName = './data/OVP_YouTube_cmp'
+        for n in range(len(inds_te)):
+            videoName = 'v' + str(self.OVP_YouTube_index[inds_te[n]])
+            if os.path.isdir(folderName + '/' + videoName + '/' + approach_name):
+                print("Removed : " + folderName + '/' + videoName + '/' + approach_name)
+                shutil.rmtree(folderName + '/' + videoName + '/' + approach_name)
 
-    def _make_folder_oracle_(self, videos, approach_name, te_inds, dataset):
-        foldername = '../data/OVP_YouTube_cmp'
-        framePath = '../data/Frames_sampled'
+    def _make_folder_oracle_(self, videos, approach_name, inds_te):
 
-        if dataset == 'OVP':
+        folderName = './data/OVP_YouTube_cmp'
+        framePath = './data/Frames_sampled/'
+
+        if self.dataset == 'OVP':
             Oracle_OVP = loadmat(r"oracle/Oracle_groundset/Oracle_OVP.mat")
             Oracle_record = Oracle_OVP['Oracle_record']
-            OVP_YouTube_index = list(range(21, 71))
-        elif dataset == 'YouTube':
+            framePath += 'OVP/'
+        elif self.dataset == 'YouTube':
             Oracle_YouTube = loadmat(r"oracle/Oracle_groundset/Oracle_Youtube.mat")
             Oracle_record = Oracle_YouTube['Oracle_record']
-            OVP_YouTube_index = list(range(11, 21)) + list(range(71, 110))
+            framePath += 'Youtube/'
 
-        for n in range(len(te_inds)):
-            videoname = 'v' + OVP_YouTube_index[te_inds[n]]
-            vidFrame = loadmat(os.path.join(framePath, videoname + '.mat'))
-            inds_frame = Oracle_record[te_inds[n]][2]
-            inds_frame = np.intersect1d(15 * list(range(1, vidFrame.nrFramesTotal)), np.sort(inds_frame),
+        for n in range(len(inds_te)):
+            videoName = 'v' + str(self.OVP_YouTube_index[inds_te[n]])
+            vidFrame = loadmat(os.path.join(framePath, videoName + '.mat'))['vidFrame']
+            inds_frame = Oracle_record[inds_te[n]][2]
+            nrFramesTotal = vidFrame[0][0][2][0][0]
+            frames_inds_frame_int, frames_int, inds_frame_int = np.intersect1d(15 * np.array(list(range(1, nrFramesTotal + 1))), np.sort(inds_frame),
                                         return_indices=True)
 
-            directPath = foldername + '/' + videoname + '/' + approach_name
-            os.mkdir(directPath)
+            directPath = folderName + '/' + videoName + '/' + approach_name
+            os.makedirs(directPath)
 
-            frame_index = inds_frame[videos[n].Ypred]
+            frame_index = [frames_inds_frame_int[i] for i in videos[n].Ypred]
+            # frame_index = inds_frame[videos[n].Ypred]
             for m in range(len(frame_index)):
                 cv2.imwrite(directPath + '/Frame' + str(frame_index[m]) + '.jpeg',
-                            vidFrame['frames'][frame_index[m] / 15]['cdata'])
+                            vidFrame[0][0][3][0][int(frame_index[m]/15)-1][0])
 
-            os.system('chmod 777 ' + directPath + '-R')
+            subprocess.check_output(['icacls.exe', directPath, '/GRANT','everyone:(f)'], stderr=subprocess.STDOUT)
 
         return
 
-    def _comparison_seqDPP_(self, approach_name, order_cmp, te_inds, dataset):
+    def _comparison_seqDPP_(self, approaches_list, order_cmp, inds_te):
+
         # Setup
-        self._write_seqDPP_input_('input_wholeCmp' + str(order_cmp) + '.txt', approach_name, te_inds, dataset)
+        self._write_seqDPP_input_('input_wholeCmp' + str(order_cmp) + '.txt', approaches_list, inds_te)
+
         threshold = 0.5
         user_index = list(range(1, 6))
-        if dataset == 'OVP':
-            OVP_YouTube_index = list(range(21, 71))
-        elif dataset == 'YouTube':
-            OVP_YouTube_index = list(range(11, 21)) + list(range(71, 110))
-        OVP_YouTube_index = OVP_YouTube_index[te_inds]
+        OVP_YouTube_index = [self.OVP_YouTube_index[i] for i in inds_te]
+
         # VSUMM Eval
         order_cmp_str = str(order_cmp)
-        os.system(
-            '/usr/lib/jvm/jre-1.6.0/bin/java -jar CUS' + order_cmp_str + '.jar -i input_wholeCmp' + order_cmp_str + '.txt -o output_wholeCmp' + order_cmp_str +
-            '.txt -u ' + str(len(user_index)) + ' -a ' + str(len(approach_name)) + ' -t ' + str(threshold))
-        os.system('chmod 777 input_wholeCmp' + order_cmp_str + '.txt -R')
-        os.system('chmod 777 output_wholeCmp' + order_cmp_str + '.txt -R')
+
+        run_command = '-jar CUS.jar -i input_wholeCmp' + order_cmp_str + '.txt -o output_wholeCmp' + order_cmp_str + '.txt -u ' + str(len(user_index)) + ' -a ' + str(len(approaches_list)) + ' -t ' + str(threshold)
+
+        subprocess.call('java ' + run_command, shell=True)
+        subprocess.check_output(['icacls.exe', 'input_wholeCmp' + order_cmp_str + '.txt', '/GRANT', 'everyone:(f)'],
+                                stderr=subprocess.STDOUT)
+        subprocess.check_output(['icacls.exe', 'output_wholeCmp' + order_cmp_str + '.txt', '/GRANT', 'everyone:(f)'],
+                                stderr=subprocess.STDOUT)
+        # os.system(
+        #     '/usr/lib/jvm/jre-1.6.0/bin/java -jar CUS' + order_cmp_str + '.jar -i input_wholeCmp' + order_cmp_str + '.txt -o output_wholeCmp' + order_cmp_str +
+        #     '.txt -u ' + str(len(user_index)) + ' -a ' + str(len(approaches_list)) + ' -t ' + str(threshold))
+        # os.system('chmod 777 input_wholeCmp' + order_cmp_str + '.txt -R')
+        # os.system('chmod 777 output_wholeCmp' + order_cmp_str + '.txt -R')
+
         output_record, output_summary = self._read_seqDPP_output_('output_wholeCmp' + str(order_cmp) + '.txt',
                                                                   OVP_YouTube_index, len(user_index),
-                                                                  len(approach_name))
+                                                                  len(approaches_list))
         os.remove('input_wholeCmp' + order_cmp_str + '.txt')
         os.remove('output_wholeCmp' + order_cmp_str + '.txt')
         return output_record, output_summary
 
-    def _write_seqDPP_input_(self, filename, approach_name, te_inds, dataset):
-        if dataset == 'OVP':
-            OVP_YouTube_index = list(range(21, 71))
-        elif dataset == 'YouTube':
-            OVP_YouTube_index = list(range(11, 21)) + list(range(71, 110))
-
+    def _write_seqDPP_input_(self, filename, approaches_list, inds_te):
         user_index = list(range(1, 6))
-        foldername = '../data/OVP_YouTube_cmp'
+        folderName = './data/OVP_YouTube_cmp'
 
         fid = open(filename, 'w')
+        fid.truncate(0)
 
-        for k in range(len(te_inds)):
-            videoname = 'v' + OVP_YouTube_index[te_inds[k]]
-            fid.write(videoname + '\n' + foldername + '/')
+        if os.stat(filename).st_size == 0:
+            print("Truncated file")
+
+        for k in range(len(inds_te)):
+            videoName = 'v' + str(self.OVP_YouTube_index[inds_te[k]])
+            fid.write(folderName + '/' + videoName + '\n')
             for n in range(len(user_index)):
-                userName = 'user' + user_index[n]
-                fid.write(videoname + ' ' + userName + '\n' + foldername + '/')
-            for n in range(len(approach_name)):
-                fid.write(videoname + ' ' + approach_name[n] + '\n' + foldername + '/')
+                userName = 'user' + str(user_index[n])
+                fid.write(folderName + '/' + videoName + '/' + userName + '\n')
+            for n in range(len(approaches_list)):
+                fid.write(folderName + '/' + videoName + '/' + approaches_list[n] + '\n')
             fid.write('\n')
 
         fid.close()
-        os.system('chmod 777 ' + filename + ' -R')
+        subprocess.check_output(['icacls.exe', filename, '/GRANT', 'everyone:(f)'], stderr=subprocess.STDOUT)
         return
 
     def _read_seqDPP_output_(self, file_name, video_index, num_user, num_approach):
