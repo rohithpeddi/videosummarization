@@ -89,6 +89,9 @@ def lazy_greedy_maximize(subFunData, w, subFunVector, budget, lossFun=None, useC
             best_sel_indices = np.where(costs[delta_indices].cumsum() <= budget)[0]
             minoux_bound = delta[delta_indices][best_sel_indices].sum()
 
+        if i % 30 == 0:
+            print(i)
+
         ''' Select the highest scoring element '''
         if delta[delta_indices[0]] > 0.0:
             logger.debug('Select element %d (gain %.3f)' % (delta_indices[0], delta[delta_indices[0]]))
@@ -314,7 +317,7 @@ def learnSubmodularMixture(training_data, submod_shells, loss_fun, params=None, 
             training_examples = training_examples
             random.shuffle(training_examples)
 
-        if np.mod(it, 50) == 0:
+        if np.mod(it, 5) == 0:
             logger.info('Example %d of %d' % (it, T))
         logger.debug('%s (budget: %d)' % (training_examples[t], training_examples[t].budget))
         logger.debug(training_examples[t].y_gt)
@@ -407,7 +410,7 @@ def learnSubmodularMixture(training_data, submod_shells, loss_fun, params=None, 
                     w[it] = w[it] / w[it].sum()
 
         else:  # projection of [1]
-            ''' update the weights accoring to  [1] algorithm 1'''
+            ''' update the weights according to  [1] algorithm 1'''
             w[it][w[it] < 0] = 0
             if w[it].sum() > 0:
                 w[it] = w[it] / np.sum(np.abs(w[it]))

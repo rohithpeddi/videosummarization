@@ -18,6 +18,8 @@ onlyfiles = [f for f in listdir(directoryPath) if isfile(join(directoryPath, f))
 model = vid_enc.Model()
 serializers.load_npz('data/trained_model/model_par', model)
 
+print("Initialized model, constructing training examples!!")
+
 class St(utilities.DataElement):
 
     def __init__(self, budget, x, Y, y_gt):
@@ -50,10 +52,10 @@ for it in range(10):
             if np.random.random() > 0.5:
                 continue
             else:
-                # if counter >= 5:
-                #     break
+                if counter >= 2:
+                    break
                 counter += 1
-                # print(counter)
+                print(counter)
                 mfile = loadmat(join(directoryPath, f))
                 video_id = f[:-4]
                 frames, numUsers = mfile['user_score'].shape
@@ -62,7 +64,7 @@ for it in range(10):
                 # user = randUser
                 for user in randUserList:
                     y_gt = mfile['user_score'][:, user]
-                    # print("Creating data for " + str(video_id) + ' with user summary ' + str(user))
+                    print("Creating data for " + str(video_id) + ' with user summary ' + str(user))
                     features = np.load(datasetRoot + 'feat/vgg/' + video_id + '.npy').astype(np.float32)
                     nFrames = mfile['nFrames'].flatten()[0]
                     img_id = list(range(nFrames))
@@ -78,18 +80,20 @@ for it in range(10):
                     y_gt = y_gt[diff:]
                     Y = np.ones(len(y_gt))
 
+                    y_gt = np.squeeze(np.argwhere(y_gt > 0))
+                    y_gt = np.squeeze(np.argwhere(y_gt % 5 == 0))
+
                     video_duration = mfile['video_duration'].flatten()[0]
-                    budget = int(0.15 * video_duration / seg_size)
+                    budget = len(y_gt)
                     S = St(budget, x, Y, y_gt)
                     training_examples.append(S)
 
     print("Finished creation of training data")
-    # Learn the weights. Given that we used the k-medoid results as ground truth, this objective should get all the weight
-    shells=[obj.representativeness, obj.representativeness, obj.uniformity, obj.random_shell]
+    shells= [obj.representativeness, obj.uniformity, obj.random_shell]
     loss = obj.intersect_complement_loss
 
     # Use AdaGrad and a l-1 semiball projection (leads to sparser solutions, i.e. is more robust to noise)
-    params = utilities.SGDparams(use_l1_projection=True,max_iter=10,use_ada_grad=True)
+    params = utilities.SGDparams(use_l1_projection=False, max_iter=10, use_ada_grad=True)
 
     print("Started learning mixture weights:  " + str(it))
     learnt_weights, _ = functions.learnSubmodularMixture(training_examples, shells,loss,params=params)
