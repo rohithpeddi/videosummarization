@@ -7,6 +7,7 @@ import cv2
 import scipy.optimize as opt
 import subprocess
 import shutil
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, classification_report, confusion_matrix
 
 
 ###############################################################
@@ -379,12 +380,13 @@ class SeqDppLinear:
 
     def seqDPP_evaluate(self, videos_te, inds_te, num_order, approach_name):
         self._kill_seqDPP_(approach_name, inds_te)
-        self._make_folder_oracle_(videos_te, approach_name, inds_te)
-        approaches_list = [approach_name]
-        O_S_detail, _ = self._comparison_seqDPP_(approaches_list, num_order, inds_te)
-        _, True_RP, True_F1 = self._sample_seqdpp_comp_(O_S_detail)
-        res = np.hstack((True_F1, True_RP))
-        return res
+        F1, precision, recall = self._make_folder_oracle_(videos_te, approach_name, inds_te)
+        return F1, precision, recall
+        # approaches_list = [approach_name]
+        # O_S_detail, _ = self._comparison_seqDPP_(videos_te, approaches_list, num_order, inds_te)
+        # _, True_RP, True_F1 = self._sample_seqdpp_comp_(O_S_detail)
+        # res = np.hstack((True_F1, True_RP))
+        # return res
 
     def _kill_seqDPP_(self, approach_name, inds_te):
         folderName = './data/OVP_YouTube_cmp'
@@ -408,6 +410,9 @@ class SeqDppLinear:
             Oracle_record = Oracle_YouTube['Oracle_record']
             framePath += 'Youtube/'
 
+        predicted = []
+        user_summary = []
+        user_index = list(range(1, 6))
         for n in range(len(inds_te)):
             videoName = 'v' + str(self.OVP_YouTube_index[inds_te[n]])
             vidFrame = loadmat(os.path.join(framePath, videoName + '.mat'))['vidFrame']
@@ -415,6 +420,11 @@ class SeqDppLinear:
             nrFramesTotal = vidFrame[0][0][2][0][0]
             frames_inds_frame_int, frames_int, inds_frame_int = np.intersect1d(15 * np.array(list(range(1, nrFramesTotal + 1))), np.sort(inds_frame),
                                         return_indices=True)
+
+            gt_frame = Oracle_record[inds_te[n]][1]
+            frames_gt_frame_int, frames_inter, gt_frame_int = np.intersect1d(
+                15 * np.array(list(range(1, nrFramesTotal + 1))), np.sort(inds_frame),
+                return_indices=True)
 
             directPath = folderName + '/' + videoName + '/' + approach_name
             os.makedirs(directPath)
@@ -425,41 +435,113 @@ class SeqDppLinear:
                 cv2.imwrite(directPath + '/Frame' + str(frame_index[m]) + '.jpeg',
                             vidFrame[0][0][3][0][int(frame_index[m]/15)-1][0])
 
-            subprocess.check_output(['icacls.exe', directPath, '/GRANT','everyone:(f)'], stderr=subprocess.STDOUT)
+            model = 'both'
+            if model == 'u':
+                for u in user_index:
+                    userName = 'user' + str(u)
+                    userSummaryDir = folderName + '/' + videoName + '/' + userName
+                    userSummaryFrameStrings = [f for f in os.listdir(userSummaryDir)]
+                    userSummaryFrames = [int(s.replace("Frame", "").replace(".jpeg", "")) for s in userSummaryFrameStrings]
 
-        return
+                    videoPredLabels, userSummaryLabels = self._generate_labels_(predicted_ind=frame_index, user_summary_ind=userSummaryFrames,
+                                                                                vid_frames_count=nrFramesTotal)
+                    predicted = np.concatenate((predicted, videoPredLabels), axis=0)
+                    user_summary = np.concatenate((user_summary, userSummaryLabels), axis=0)
+            elif model == 'gt':
+                videoPredLabels, userSummaryLabels = self._generate_labels_(predicted_ind=frame_index,
+                                                                            user_summary_ind=frames_gt_frame_int,
+                                                                            vid_frames_count=nrFramesTotal)
+                predicted = np.concatenate((predicted, videoPredLabels), axis=0)
+                user_summary = np.concatenate((user_summary, userSummaryLabels), axis=0)
+            elif model == 'both':
+                for u in user_index:
+                    if np.random.random() > 0.5:
+                        continue
 
-    def _comparison_seqDPP_(self, approaches_list, order_cmp, inds_te):
+                    userName = 'user' + str(u)
+                    userSummaryDir = folderName + '/' + videoName + '/' + userName
+                    userSummaryFrameStrings = [f for f in os.listdir(userSummaryDir)]
+                    userSummaryFrames = [int(s.replace("Frame", "").replace(".jpeg", "")) for s in userSummaryFrameStrings]
 
-        # Setup
-        self._write_seqDPP_input_('input_wholeCmp' + str(order_cmp) + '.txt', approaches_list, inds_te)
+                    videoPredLabels, userSummaryLabels = self._generate_labels_(predicted_ind=frame_index, user_summary_ind=userSummaryFrames,
+                                                                                vid_frames_count=nrFramesTotal)
+                    predicted = np.concatenate((predicted, videoPredLabels), axis=0)
+                    user_summary = np.concatenate((user_summary, userSummaryLabels), axis=0)
 
-        threshold = 0.5
-        user_index = list(range(1, 6))
-        OVP_YouTube_index = [self.OVP_YouTube_index[i] for i in inds_te]
+                videoPredLabels, userSummaryLabels = self._generate_labels_(predicted_ind=frame_index,
+                                                                            user_summary_ind=frames_gt_frame_int,
+                                                                            vid_frames_count=nrFramesTotal)
+                predicted = np.concatenate((predicted, videoPredLabels), axis=0)
+                user_summary = np.concatenate((user_summary, userSummaryLabels), axis=0)
 
-        # VSUMM Eval
-        order_cmp_str = str(order_cmp)
 
-        run_command = '-jar CUS.jar -i input_wholeCmp' + order_cmp_str + '.txt -o output_wholeCmp' + order_cmp_str + '.txt -u ' + str(len(user_index)) + ' -a ' + str(len(approaches_list)) + ' -t ' + str(threshold)
+        F1, precision, recall = self._compute_stats_(predicted, user_summary)
 
-        subprocess.call('java ' + run_command, shell=True)
-        subprocess.check_output(['icacls.exe', 'input_wholeCmp' + order_cmp_str + '.txt', '/GRANT', 'everyone:(f)'],
-                                stderr=subprocess.STDOUT)
-        subprocess.check_output(['icacls.exe', 'output_wholeCmp' + order_cmp_str + '.txt', '/GRANT', 'everyone:(f)'],
-                                stderr=subprocess.STDOUT)
-        # os.system(
-        #     '/usr/lib/jvm/jre-1.6.0/bin/java -jar CUS' + order_cmp_str + '.jar -i input_wholeCmp' + order_cmp_str + '.txt -o output_wholeCmp' + order_cmp_str +
-        #     '.txt -u ' + str(len(user_index)) + ' -a ' + str(len(approaches_list)) + ' -t ' + str(threshold))
-        # os.system('chmod 777 input_wholeCmp' + order_cmp_str + '.txt -R')
-        # os.system('chmod 777 output_wholeCmp' + order_cmp_str + '.txt -R')
+        return F1, precision, recall
 
-        output_record, output_summary = self._read_seqDPP_output_('output_wholeCmp' + str(order_cmp) + '.txt',
-                                                                  OVP_YouTube_index, len(user_index),
-                                                                  len(approaches_list))
-        os.remove('input_wholeCmp' + order_cmp_str + '.txt')
-        os.remove('output_wholeCmp' + order_cmp_str + '.txt')
-        return output_record, output_summary
+    def _generate_labels_(self, predicted_ind, user_summary_ind, vid_frames_count):
+
+        predicted_labels = np.zeros(15 * (vid_frames_count + 1))
+        user_summary_labels = np.zeros(15 * (vid_frames_count + 1))
+
+        # For every selected frame, we consider the next 5 frames as selected ones to produces skims
+        for pri in predicted_ind:
+            for j in range(5):
+                predicted_labels[pri+j] = 1
+
+        for usi in user_summary_ind:
+            for j in range(5):
+                user_summary_labels[usi+j] = 1
+
+        return predicted_labels, user_summary_labels
+
+
+    def _compute_stats_(self, predicted, user_summary):
+        F1 = f1_score(user_summary, predicted, average="macro")
+        precision = precision_score(user_summary, predicted, average="macro")
+        recall = recall_score(user_summary, predicted, average="macro")
+        return F1, precision, recall
+
+    # def _comparison_seqDPP_(self, approaches_list, order_cmp, inds_te):
+    #
+    #     # Setup
+    #     self._write_seqDPP_input_('input_wholeCmp' + str(order_cmp) + '.txt', approaches_list, inds_te)
+    #
+    #     threshold = 0.5
+    #     user_index = list(range(1, 6))
+    #     OVP_YouTube_index = [self.OVP_YouTube_index[i] for i in inds_te]
+    #
+    #     # VSUMM Eval
+    #     order_cmp_str = str(order_cmp)
+    #
+    #     # Constructing Labels for predicted vs user summaries to evaluate F1, Recall, Precision
+    #     input_file = 'input_wholeCmp' + str(order_cmp) + '.txt'
+    #
+    #     f_inp = open(input_file, 'r')
+    #
+    #
+    #
+    #
+    #
+    #     run_command = '-jar CUS.jar -i input_wholeCmp' + order_cmp_str + '.txt -o output_wholeCmp' + order_cmp_str + '.txt -u ' + str(len(user_index)) + ' -a ' + str(len(approaches_list)) + ' -t ' + str(threshold)
+    #
+    #     subprocess.call('java ' + run_command, shell=True)
+    #     subprocess.check_output(['icacls.exe', 'input_wholeCmp' + order_cmp_str + '.txt', '/GRANT', 'everyone:(f)'],
+    #                             stderr=subprocess.STDOUT)
+    #     subprocess.check_output(['icacls.exe', 'output_wholeCmp' + order_cmp_str + '.txt', '/GRANT', 'everyone:(f)'],
+    #                             stderr=subprocess.STDOUT)
+    #     os.system(
+    #         '/usr/lib/jvm/jre-1.6.0/bin/java -jar CUS' + order_cmp_str + '.jar -i input_wholeCmp' + order_cmp_str + '.txt -o output_wholeCmp' + order_cmp_str +
+    #         '.txt -u ' + str(len(user_index)) + ' -a ' + str(len(approaches_list)) + ' -t ' + str(threshold))
+    #     os.system('chmod 777 input_wholeCmp' + order_cmp_str + '.txt -R')
+    #     os.system('chmod 777 output_wholeCmp' + order_cmp_str + '.txt -R')
+    #
+    #     output_record, output_summary = self._read_seqDPP_output_('output_wholeCmp' + str(order_cmp) + '.txt',
+    #                                                               OVP_YouTube_index, len(user_index),
+    #                                                               len(approaches_list))
+    #     os.remove('input_wholeCmp' + order_cmp_str + '.txt')
+    #     os.remove('output_wholeCmp' + order_cmp_str + '.txt')
+    #     return output_record, output_summary
 
     def _write_seqDPP_input_(self, filename, approaches_list, inds_te):
         user_index = list(range(1, 6))
@@ -482,7 +564,7 @@ class SeqDppLinear:
             fid.write('\n')
 
         fid.close()
-        subprocess.check_output(['icacls.exe', filename, '/GRANT', 'everyone:(f)'], stderr=subprocess.STDOUT)
+        # subprocess.check_output(['icacls.exe', filename, '/GRANT', 'everyone:(f)'], stderr=subprocess.STDOUT)
         return
 
     def _read_seqDPP_output_(self, file_name, video_index, num_user, num_approach):
