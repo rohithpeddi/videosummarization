@@ -82,8 +82,7 @@ for i in range(100):
     print('F-score, Recall, Precision: ')
     print(F1, precision, recall)
 
-
 print("STATISTICS: ")
-print("F1 : Mean " + np.array(F1s).mean() + ", Variance : " + np.array(F1s).var())
-print("Precision : Mean " + np.array(pre).mean() + ", Variance : " + np.array(pre).var())
-print("Recall : Mean " + np.array(rec).mean() + ", Variance : " + np.array(rec).var())
+print("F1 : Mean " + str(np.array(F1s).mean() )+ ", Variance : " + str(np.array(F1s).var()))
+print("Precision : Mean " + str(np.array(pre).mean() )+ ", Variance : " + str(np.array(pre).var()))
+print("Recall : Mean " + str(np.array(rec).mean()) + ", Variance : " + str(np.array(rec).var()))

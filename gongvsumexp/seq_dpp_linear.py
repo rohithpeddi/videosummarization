@@ -87,14 +87,14 @@ def _initialize_videos_(seg_size, dataset, rng_seed):
         inds_te.sort()
         inds_tr.sort()
     elif dataset == 'Youtube':
-        valid_inds = list(range(11, 22)) + list(range(23, 51))
+        valid_inds = list(range(10, 21)) + list(range(22, 50))
         inds_order = np.random.RandomState(seed=rng_seed).permutation(39)
         inds_tr = inds_order[:31]
         inds_te = inds_order[32:]
         inds_te.sort()
         inds_tr.sort()
-        inds_tr = valid_inds[inds_tr]
-        inds_te = valid_inds[inds_te]
+        inds_tr = [valid_inds[i] for i in inds_tr]
+        inds_te = [valid_inds[i] for i in inds_te]
 
     videos = []
     if dataset == 'OVP':
