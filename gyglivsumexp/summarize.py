@@ -85,7 +85,8 @@ def train(training_files, max_users=1):
             print("Creating data for " + str(video_id) + ' with user summary ' + str(user))
             S, _ = create_vsum(training_features, tr_file_mat, user)
             training_examples.append(S)
-        print("Finished creation of training data")
+
+    print("Finished creation of training data")
 
     # Following the submodular functions shells and loss function from paper we get
     params = utilities.SGDparams(use_l1_projection=False, max_iter=10, use_ada_grad=True)
