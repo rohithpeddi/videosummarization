@@ -5,11 +5,11 @@ from chainer import serializers
 from os import listdir
 from scipy.io import loadmat
 from os.path import isfile, join
-from Project.videosummarization.gyglivsumexp.script.chain import vid_enc
-from Project.videosummarization.gyglivsumexp.script.dataset.vsum import VSum
-from Project.videosummarization.gyglivsumexp.submodular_mixtures.utils import utilities
-from Project.videosummarization.gyglivsumexp.submodular_mixtures.func import functions
-from Project.videosummarization.gyglivsumexp.submodular_mixtures.utils.obj import objectives as obj
+from script.chain import vid_enc
+from submodular_mixtures.dataset.vsum import VSum
+from submodular_mixtures.utils import utilities
+from submodular_mixtures.func import functions
+from submodular_mixtures.utils.obj import objectives as obj
 from sklearn.metrics import f1_score, precision_score, recall_score
 
 
@@ -19,32 +19,30 @@ from sklearn.metrics import f1_score, precision_score, recall_score
 ############################################################################################
 
 seg_size = 5
-datasetRoot = '../../data/summe/'
-directoryPath = "../../summe/GT/"
+datasetRoot = './data/summe/'
+directoryPath = "./summe/GT/"
 model = vid_enc.Model()
-serializers.load_npz('data/trained_model/model_par', model)
+serializers.load_npz('./data/trained_model/model_par', model)
 
 loss = obj.recall_loss
-objective_funcs = [obj.representativeness_shell, obj.uniformity_shell, obj.interestingness_shell]
+shells = [obj.representativeness_shell, obj.uniformity_shell, obj.interestingness_shell]
 
 # Run summarize for 10 times with different rng_seeds inorder to select different set of train videos every time
 # Average the F1, precision, recall statistics produced for 10 rounds
 
 
-def summarize():
+def summarize(max_iterations=3):
     F1_list = []
     precision_list = []
     recall_list = []
-    for it in range(10):
-
-        print("Current iteration of learning weights : " + it)
-
+    for it in range(max_iterations):
+        print("Current iteration of learning weights : " + str(it))
         # sample 20 videos to train and find the weights of mixtures
         data_files = [f for f in listdir(directoryPath) if isfile(join(directoryPath, f))]
         np.random.shuffle(data_files)
 
-        training_files = data_files[:2]
-        test_files = data_files[2:]
+        training_files = data_files[:20]
+        test_files = data_files[20:]
 
         learnt_weights = train(training_files)
 
@@ -57,12 +55,13 @@ def summarize():
 
         # evaluate the results
         F1, precision, recall = evaluate(predicted_summary, ground_summary)
+        print("Statistics : " + str(F1) + ',' + str(precision) + ',' + str(recall))
 
         F1_list.append(F1)
         precision_list.append(precision)
         recall_list.append(recall)
 
-    return np.sum(F1_list)/10, np.sum(precision)/10, np.sum(recall)/10
+    return np.sum(np.array(F1_list))/max_iterations, np.sum(np.array(precision))/max_iterations, np.sum(np.array(recall))/max_iterations
 
 
 def evaluate(predicted, user_summary):
@@ -72,7 +71,7 @@ def evaluate(predicted, user_summary):
     return F1, precision, recall
 
 
-def train(training_files, max_users=3):
+def train(training_files, max_users=1):
     training_examples = []
     for file_name in training_files:
         video_id = file_name[:-4]
@@ -92,9 +91,8 @@ def train(training_files, max_users=3):
     params = utilities.SGDparams(use_l1_projection=False, max_iter=10, use_ada_grad=True)
 
     print("Started learning mixture weights:  ")
-    learnt_weights, _ = functions.learnSubmodularMixture(training_examples, objective_funcs, loss, params=params)
+    learnt_weights, _ = functions.learnSubmodularMixture(training_examples, shells, loss, params=params)
     print("Finished learning mixture weights")
-
     return learnt_weights
 
 
@@ -106,18 +104,20 @@ def predict(test_files, weights):
         test_file_mat = loadmat(join(directoryPath, file_name))
         test_features = np.load(datasetRoot + 'feat/vgg/' + video_id + '.npy').astype(np.float32)
         frames, num_users = test_file_mat['user_score'].shape
-
-        random_user_list = random.sample(range(0, num_users), 1)
+        random_user_list = random.sample(range(0, num_users), 3)
         for user in random_user_list:
             print("Creating data for " + str(video_id) + ' with user summary ' + str(user))
             S, y_gt = create_vsum(test_features, test_file_mat, user)
+            objective_funcs = [obj.representativeness_shell(S), obj.uniformity_shell(S), obj.interestingness_shell(S)]
             selected, score, minoux_bound = functions.leskovec_maximize(S, weights, objective_funcs, budget=S.budget)
-            selected.sort()
+            selected = np.sort(selected)
 
             predicted_labels = np.zeros(len(S.Y))
             for idx in list(selected):
                 for j in range(seg_size):
-                    predicted_labels[idx + j] = 1
+                # for j in range(1):
+                    if idx + j < len(S.Y):
+                        predicted_labels[idx + j] = 1
 
             ground_truth_labels = np.zeros(len(S.Y))
             for idx in list(y_gt):
@@ -148,7 +148,7 @@ def create_vsum(features, mat_file, user):
     Y = np.ones(features_length)
 
     y_gt = np.squeeze(np.argwhere(y_gt > 0))
-
+    gt = y_gt
     # Approximately equivalent to sampling one frame for every 5 frames selected in the ground truth summary
     # Used to reduce the time for training
     gt = np.squeeze(np.argwhere(y_gt % 5 == 0))
@@ -159,6 +159,6 @@ def create_vsum(features, mat_file, user):
 
 
 print("Started SUMMARIZATION!")
-F1, precision, recall = summarize()
+F1, precision, recall = summarize(max_iterations=1)
 print(F1, precision, recall)
 print("Finished SUMMARIZATION!")

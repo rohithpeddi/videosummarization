@@ -1,6 +1,6 @@
 import numpy as np
 import scipy.spatial.distance as dist
-from ...submodular_mixtures.utils import utilities
+from ..utils import utilities
 
 
 class VSum(utilities.DataElement):
