@@ -7,10 +7,9 @@ import skvideo.io as skio
 
 from chainer import serializers
 from chainer import configuration
-from feature_extractor.Chain import vid_enc, vid_enc_vgg19
-from feature_extractor.Chain import sampling
-from feature_extractor.Chain import summarize
-
+from script.chain import vid_enc, vid_enc_vgg19
+from script.chain import sampling
+from Project.videosummarization.gyglivsumexp import summarize
 
 # settings
 feat_type = 'smt_feat' # smt_feat (proposed) or vgg

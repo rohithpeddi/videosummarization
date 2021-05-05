@@ -89,8 +89,10 @@ def lazy_greedy_maximize(subFunData, w, subFunVector, budget, lossFun=None, useC
             best_sel_indices = np.where(costs[delta_indices].cumsum() <= budget)[0]
             minoux_bound = delta[delta_indices][best_sel_indices].sum()
 
-        if i % 30 == 0:
-            print(i)
+        if i % 50 == 0:
+            if i == 0:
+                print("-------------------------------------------------------------------------------")
+            print("Running LAZY GREEDY MAXIMIZE iteration " + str(i))
 
         ''' Select the highest scoring element '''
         if delta[delta_indices[0]] > 0.0:
@@ -129,6 +131,7 @@ def lazy_greedy_maximize(subFunData, w, subFunVector, budget, lossFun=None, useC
             return selectedIndices, currScore, minoux_bound
         ''' Increase iteration number'''
         i += 1
+
 
 def leskovec_maximize(subFunData, w, subFunVector, budget, lossFun=None):
     '''
@@ -317,8 +320,9 @@ def learnSubmodularMixture(training_data, submod_shells, loss_fun, params=None, 
             training_examples = training_examples
             random.shuffle(training_examples)
 
-        if np.mod(it, 5) == 0:
+        if np.mod(it, 10) == 0:
             logger.info('Example %d of %d' % (it, T))
+
         logger.debug('%s (budget: %d)' % (training_examples[t], training_examples[t].budget))
         logger.debug(training_examples[t].y_gt)
 
@@ -394,8 +398,7 @@ def learnSubmodularMixture(training_data, submod_shells, loss_fun, params=None, 
             if it == 0:
                 res = scipy.optimize.minimize(obj, w_0, constraints=cons, bounds=bnds)  # , options={'maxiter':10**3})
             else:
-                res = scipy.optimize.minimize(obj, w[it - 1], constraints=cons,
-                                              bounds=bnds)  # , options={'maxiter':10**3})
+                res = scipy.optimize.minimize(obj, w[it - 1], constraints=cons, bounds=bnds)  # , options={'maxiter':10**3})
             if res.success:
                 assert (res.x < -10 ** -5).any() == False
                 w[it] = res.x
@@ -418,6 +421,7 @@ def learnSubmodularMixture(training_data, submod_shells, loss_fun, params=None, 
 
         if np.mod(it, 10) == 0:
             logger.debug('w[it]:\t%s' % ', '.join(map(str, w[it])))
+
         it = it + 1
         logger.debug(it)
         if it >= len(training_examples) * params.max_iter:

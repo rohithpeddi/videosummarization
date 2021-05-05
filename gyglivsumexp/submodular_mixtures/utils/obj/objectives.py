@@ -1,5 +1,42 @@
 import numpy as np
 
+#####################################################################
+#   SUBMODULAR FUNCTIONS FOR VIDEO SUMMARIZATION BASED ON PAPER
+#
+#   1. INTERESTINGNESS : Weighted Coverage function
+#   2. REPRESENTATIVENESS : Submodular objective based on K-mediod obj
+#                          [Represent a segment using average of global features]
+#   3. UNIFORMITY : Submodular objective based on K-mediod obj
+#                          [Represent a segment using mean frame number]
+#
+#
+#   LOSS FUNCTION
+#
+#   1. Recall Loss
+#
+#
+######################################################################
+
+
+# INTERESTINGNESS - [OVERLAPPING SEGMENTS]
+
+def interestingness_shell(sumData):
+    frameScores = sumData.getFrameScores()
+    segmentSize = sumData.seg_size
+    return lambda selectedIndices: weighted_coverage(selectedIndices, segmentSize, frameScores)
+
+
+def weighted_coverage(selectedIndices, segmentSize, frameScores):
+    unionIndices = np.zeros(len(frameScores))
+    for si in selectedIndices:
+        for j in range(segmentSize):
+            if si + j < len(frameScores):
+                unionIndices[si+j] = 1
+    coverageScore = np.sum(np.dot(unionIndices, frameScores.T))
+    return coverageScore
+
+# REPRESENTATIVENESS - [global features of segment frames are averaged]
+
 
 def representativeness_shell(sumData):
     '''
@@ -11,6 +48,9 @@ def representativeness_shell(sumData):
     normalizer = distanceMatrix.mean()
     return lambda selectedIndices: (1 - kmedoid_loss(selectedIndices, distanceMatrix, float(normalizer)))
 
+# UNIFORMITY - [mean frame number of global features of segment are considered]
+
+
 def uniformity_shell(sumData):
     '''
     Based on representativeness_shell implementation in 'example_objectives.py'
@@ -21,27 +61,6 @@ def uniformity_shell(sumData):
     normalizer = distanceMatrix.mean()
     return lambda selectedIndices: (1 - kmedoid_loss(selectedIndices, distanceMatrix, float(normalizer)))
 
-
-def uniformity(S):
-    '''
-    Based on representativeness_shell implementation in 'example_objectives.py'
-    :input S: DataElement with function getChrDistances()
-    :return: uniformity objective
-    '''
-    tempDMat = S.getChrDistances()
-    norm = tempDMat.mean()
-    return (lambda X: (1 - kmedoid_loss(X, tempDMat, float(norm))))
-
-
-def representativeness(S):
-    '''
-    Based on representativeness_shell implementation in 'example_objectives.py'
-    :input S: DataElement with function getDistances()
-    :return: representativeness objective
-    '''
-    tempDMat = S.getDistances()
-    norm = tempDMat.mean()
-    return (lambda X: (1 - kmedoid_loss(X, tempDMat, float(norm))))
 
 def kmedoid_loss(selectedIndices, distanceMatrix, norm):
     '''
@@ -57,27 +76,24 @@ def kmedoid_loss(selectedIndices, distanceMatrix, norm):
     else:
         return 1
 
+# RECALL LOSS - [Count of candidate summary y not represented in ground truth]
 
-def intersect_complement_loss(sumData, selectedIndices):
+
+def recall_loss(sumData, selectedIndices):
     '''
     :param sumData: A DataElement
     :param selectedIndices: a list of selected indices
     :return: the loss (in  [0; 1])
     '''
 
-    #set intersection is much faster that numpy intersect1d
-    return (len(selectedIndices) - len(set(sumData.y_gt).intersection(selectedIndices))) / float(len(sumData.y_gt))
-
-
-def recall_loss(sumData, selectedIndices, budget):
-    '''
-    :param sumData: A DataElement
-    :param selectedIndices: a list of selected indices
-    :return: the loss (in  [0; 1])
-    '''
-
+    budget = sumData.budget
     rl1 = (len(selectedIndices) - len(set(sumData.y_gt).intersection(selectedIndices)))
     return rl1/budget
+
+#########################################################################################
+# -------------------------------- OTHER SHELLS ----------------------------------------
+#########################################################################################
+
 
 def random_shell(sumData):
     '''
@@ -94,6 +110,7 @@ def random_shell(sumData):
 def x_coord_shell(sumData):
     return lambda selectedIndices: np.sum(sumData.x[np.array(selectedIndices), 0]) / (sumData.budget * sumData.x[:, 0].max())
 
+
 def earliness_shell(sumData):
     '''
     :param sumData: DataElement
@@ -101,3 +118,16 @@ def earliness_shell(sumData):
     '''
     return lambda selectedIndices: (np.max(sumData.Y) * len(selectedIndices) - np.sum(sumData.Y[selectedIndices])) / float(sumData.budget * np.max(sumData.Y))
 
+#########################################################################################
+# -------------------------------- OTHER LOSS FUNCTIONS ---------------------------------
+#########################################################################################
+
+def intersect_complement_loss(sumData, selectedIndices):
+    '''
+    :param sumData: A DataElement
+    :param selectedIndices: a list of selected indices
+    :return: the loss (in  [0; 1])
+    '''
+
+    #set intersection is much faster that numpy intersect1d
+    return (len(selectedIndices) - len(set(sumData.y_gt).intersection(selectedIndices))) / float(len(sumData.y_gt))

@@ -1,104 +1,28 @@
 import numpy as np
 import random
 import functools
+import json
 from os import listdir
 from os.path import isfile, join
 from scipy.io import loadmat
 import scipy.spatial.distance as dist
 from chainer import serializers
 
-from feature_extractor.Chain import vid_enc, vid_enc_vgg19
+from script.chain import vid_enc, vid_enc_vgg19
 from submodular_mixtures.utils import utilities
 from submodular_mixtures.func import functions
 from submodular_mixtures.utils.obj import objectives as obj
 
-datasetRoot = 'data/summe/'
-directoryPath = "summe/GT/"
-onlyfiles = [f for f in listdir(directoryPath) if isfile(join(directoryPath, f))]
-model = vid_enc.Model()
-serializers.load_npz('data/trained_model/model_par', model)
+
 
 print("Initialized model, constructing training examples!!")
 
-class St(utilities.DataElement):
-
-    def __init__(self, budget, x, Y, y_gt):
-        self.budget = budget
-        self.x = x
-        self.Y = Y
-        self.y_gt = y_gt
-        self.dist_v = dist.pdist(x)
-        img_id = list(range(len(x)))
-        fno_arr = np.expand_dims(np.array(img_id), axis=1)
-        self.dist_c = dist.pdist(fno_arr, 'sqeuclidean')
-
-    def getCosts(self):
-        return np.ones(len(self.Y))
-
-    def getDistances(self):
-        d = dist.squareform(self.dist_v)
-        return np.multiply(d, d)
-
-    def getChrDistances(self):
-        d = dist.squareform(self.dist_c)
-        return np.multiply(d, d)
 
 weights = []
 for it in range(10):
     training_examples = []
     counter = 0
-    for f in listdir(directoryPath):
-        if isfile(join(directoryPath, f)):
-            if np.random.random() > 0.5:
-                continue
-            else:
-                if counter >= 2:
-                    break
-                counter += 1
-                print(counter)
-                mfile = loadmat(join(directoryPath, f))
-                video_id = f[:-4]
-                frames, numUsers = mfile['user_score'].shape
-                randUserList = random.sample(range(0, numUsers), 1)
-                # randUser = np.random.randint(numUsers)
-                # user = randUser
-                for user in randUserList:
-                    y_gt = mfile['user_score'][:, user]
-                    print("Creating data for " + str(video_id) + ' with user summary ' + str(user))
-                    features = np.load(datasetRoot + 'feat/vgg/' + video_id + '.npy').astype(np.float32)
-                    nFrames = mfile['nFrames'].flatten()[0]
-                    img_id = list(range(nFrames))
-                    seg_size = 5
-                    segs = [img_id[i:i + seg_size] for i in range(len(img_id) - seg_size + 1)]
-                    segs = functools.reduce(lambda x, Y: x + Y, segs)
-                    x = features[segs]
-                    enc_x = model(x)
-                    x = enc_x.data
-                    features_length = len(x)
 
-                    diff = np.abs(len(y_gt) - features_length)
-                    y_gt = y_gt[diff:]
-                    Y = np.ones(len(y_gt))
-
-                    y_gt = np.squeeze(np.argwhere(y_gt > 0))
-                    y_gt = np.squeeze(np.argwhere(y_gt % 5 == 0))
-
-                    video_duration = mfile['video_duration'].flatten()[0]
-                    budget = len(y_gt)
-                    S = St(budget, x, Y, y_gt)
-                    training_examples.append(S)
-
-    print("Finished creation of training data")
-    shells= [obj.representativeness, obj.uniformity, obj.random_shell]
-    loss = obj.intersect_complement_loss
-
-    # Use AdaGrad and a l-1 semiball projection (leads to sparser solutions, i.e. is more robust to noise)
-    params = utilities.SGDparams(use_l1_projection=False, max_iter=10, use_ada_grad=True)
-
-    print("Started learning mixture weights:  " + str(it))
-    learnt_weights, _ = functions.learnSubmodularMixture(training_examples, shells,loss,params=params)
-    weights.append(learnt_weights)
-    print("Finished learning mixture weights")
 
 
 weights = np.array(weights)
