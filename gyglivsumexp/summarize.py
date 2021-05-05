@@ -75,6 +75,7 @@ def predict(test_files, weights, max_users=15):
         frames, num_users = test_file_mat['user_score'].shape
 
         randUser = random.sample(range(0, num_users), 1)
+        print("Creating data for " + str(video_id) + ' with user summary ' + str(randUser))
         S, y_gt = create_vsum(test_features, test_file_mat, randUser)
         objective_funcs = [obj.representativeness_shell(S), obj.uniformity_shell(S), obj.interestingness_shell(S)]
         selected, score, minoux_bound = functions.leskovec_maximize(S, weights, objective_funcs, budget=S.budget)
