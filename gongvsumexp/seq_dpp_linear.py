@@ -14,15 +14,6 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_sc
 # --------------------- SEQ DPP LINEAR ------------------------
 ###############################################################
 
-
-class DataElement:
-
-    def __init__(self):
-        pass
-
-    # Some func to be implemented
-
-
 # Some func and data storage elements
 # 1. ids
 # 2. grounds
@@ -32,7 +23,7 @@ class DataElement:
 # 6. fishers
 # 7. YpredSeq
 # 8. Ypred
-class VideoData(DataElement):
+class VideoData():
 
     def __init__(self, mat_data_element, seg_size, dataset):
         self.ids = list(range(len(np.squeeze(mat_data_element[2]))))
