@@ -1,5 +1,6 @@
 import numpy as np
 import random
+import json
 import functools
 from chainer import serializers
 from os import listdir
@@ -24,44 +25,8 @@ directoryPath = "./summe/GT/"
 model = vid_enc.Model()
 serializers.load_npz('./data/trained_model/model_par', model)
 
-loss = obj.recall_loss
-shells = [obj.representativeness_shell, obj.uniformity_shell, obj.interestingness_shell]
-
 # Run summarize for 10 times with different rng_seeds inorder to select different set of train videos every time
 # Average the F1, precision, recall statistics produced for 10 rounds
-
-
-def summarize(max_iterations=3):
-    F1_list = []
-    precision_list = []
-    recall_list = []
-    for it in range(max_iterations):
-        print("Current iteration of learning weights : " + str(it))
-        # sample 20 videos to train and find the weights of mixtures
-        data_files = [f for f in listdir(directoryPath) if isfile(join(directoryPath, f))]
-        np.random.shuffle(data_files)
-
-        training_files = data_files[:20]
-        test_files = data_files[20:]
-
-        learnt_weights = train(training_files)
-
-        # test on the rest of 5 videos
-        predicted_summary, ground_summary = predict(test_files, learnt_weights)
-
-        # generate summaries for the rest of the videos and
-        # if it == 9:
-        #     generate_summary()
-
-        # evaluate the results
-        F1, precision, recall = evaluate(predicted_summary, ground_summary)
-        print("Statistics : " + str(F1) + ',' + str(precision) + ',' + str(recall))
-
-        F1_list.append(F1)
-        precision_list.append(precision)
-        recall_list.append(recall)
-
-    return np.sum(np.array(F1_list))/max_iterations, np.sum(np.array(precision))/max_iterations, np.sum(np.array(recall))/max_iterations
 
 
 def evaluate(predicted, user_summary):
@@ -71,7 +36,7 @@ def evaluate(predicted, user_summary):
     return F1, precision, recall
 
 
-def train(training_files, max_users=1):
+def train(training_files, max_users=10):
     training_examples = []
     for file_name in training_files:
         video_id = file_name[:-4]
@@ -97,15 +62,18 @@ def train(training_files, max_users=1):
     return learnt_weights
 
 
-def predict(test_files, weights):
+def predict(test_files, weights, max_users=15):
     predicted = []
     ground_truth = []
+    F1_list = []
+    precision_list = []
+    recall_list = []
     for file_name in test_files:
         video_id = file_name[:-4]
         test_file_mat = loadmat(join(directoryPath, file_name))
         test_features = np.load(datasetRoot + 'feat/vgg/' + video_id + '.npy').astype(np.float32)
         frames, num_users = test_file_mat['user_score'].shape
-        random_user_list = random.sample(range(0, num_users), 3)
+        random_user_list = random.sample(range(0, num_users), max_users)
         for user in random_user_list:
             print("Creating data for " + str(video_id) + ' with user summary ' + str(user))
             S, y_gt = create_vsum(test_features, test_file_mat, user)
@@ -124,11 +92,21 @@ def predict(test_files, weights):
             for idx in list(y_gt):
                 ground_truth_labels[idx] = 1
 
-            predicted = np.concatenate((predicted, predicted_labels), axis=0)
-            ground_truth = np.concatenate((ground_truth, ground_truth_labels), axis=0)
+            F1 = f1_score(ground_truth_labels, predicted_labels, average="macro")
+            precision = precision_score(ground_truth_labels, predicted_labels, average="macro")
+            recall = recall_score(ground_truth_labels, predicted_labels, average="macro")
 
-    return predicted, ground_truth
+            print(F1, recall)
 
+            F1_list.append(F1)
+            precision_list.append(precision)
+            recall_list.append(recall)
+
+            # predicted = np.concatenate((predicted, predicted_labels), axis=0)
+            # ground_truth = np.concatenate((ground_truth, ground_truth_labels), axis=0)
+
+    # return predicted, ground_truth
+    return F1_list, precision_list, recall_list
 
 def create_vsum(features, mat_file, user):
     y_gt = mat_file['user_score'][:, user]
@@ -145,21 +123,52 @@ def create_vsum(features, mat_file, user):
     diff = np.abs(len(y_gt) - features_length)
 
     y_gt = y_gt[diff:]
-    features_length = len(y_gt)
-    Y = np.ones(features_length)
+    frames_length = len(y_gt)
+    Y = np.ones(frames_length)
 
     y_gt = np.squeeze(np.argwhere(y_gt > 0))
     gt = y_gt
     # Approximately equivalent to sampling one frame for every 5 frames selected in the ground truth summary
     # Used to reduce the time for training
     gt = np.squeeze(np.argwhere(y_gt % 5 == 0))
-    budget = len(gt)
+    budget = int((0.15*num_frames)/seg_size)
+
+    print("Budget size for the summary of video " + str(budget))
+
     gt_score = np.squeeze(mat_file['gt_score'])[diff:]
+
     S = VSum(budget, x, Y, gt, gt_score, seg_size)
     return S, y_gt
 
 
-print("Started SUMMARIZATION!")
-F1, precision, recall = summarize(max_iterations=1)
-print(F1, precision, recall)
-print("Finished SUMMARIZATION!")
+loss = obj.recall_loss
+shells = [obj.representativeness_shell, obj.uniformity_shell, obj.interestingness_shell]
+shell_types = [[obj.representativeness_shell], [obj.uniformity_shell], [obj.interestingness_shell],
+               [obj.representativeness_shell, obj.uniformity_shell, obj.interestingness_shell]]
+
+
+max_iterations = 1
+for it in range(max_iterations):
+    print("Current iteration of learning weights : " + str(it))
+    # sample 20 videos to train and find the weights of mixtures
+    data_files = [f for f in listdir(directoryPath) if isfile(join(directoryPath, f))]
+    np.random.shuffle(data_files)
+    for shell_index in range(len(shell_types)):
+        if shell_index < 3:
+            np.random.shuffle(data_files)
+            test_files = data_files
+            if shell_index == 0:
+                weights = [1, 0, 0]
+                F1r_list, pr_list, rr_list = predict(test_files, weights)
+            elif shell_index == 1:
+                weights = [0, 1, 0]
+                F1u_list, pu_list, ru_list = predict(test_files, weights)
+            else:
+                weights = [0, 0, 1]
+                F1i_list, pi_list, ri_list = predict(test_files, weights)
+        else:
+            training_files = data_files[:20]
+            test_files = data_files[20:]
+            learnt_weights = train(training_files)
+            # test on the rest of 5 videos
+            F1c_list, pc_list, rc_list = predict(test_files, learnt_weights)

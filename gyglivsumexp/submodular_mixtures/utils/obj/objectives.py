@@ -21,18 +21,18 @@ import numpy as np
 # INTERESTINGNESS - [OVERLAPPING SEGMENTS]
 
 def interestingness_shell(sumData):
-    frameScores = sumData.getFrameScores()
-    segmentSize = sumData.seg_size
-    return lambda selectedIndices: weighted_coverage(selectedIndices, segmentSize, frameScores)
+    frame_scores = sumData.getFrameScores()
+    segment_size = sumData.seg_size
+    return lambda selectedIndices: weighted_coverage(selectedIndices, segment_size, frame_scores)
 
 
-def weighted_coverage(selectedIndices, segmentSize, frameScores):
-    unionIndices = np.zeros(len(frameScores))
-    for si in selectedIndices:
-        for j in range(segmentSize):
-            if si + j < len(frameScores):
+def weighted_coverage(selected_indices, segment_size, frame_scores):
+    unionIndices = np.zeros(len(frame_scores))
+    for si in selected_indices:
+        for j in range(segment_size):
+            if si + j < len(frame_scores):
                 unionIndices[si+j] = 1
-    coverageScore = np.sum(np.dot(unionIndices, frameScores.T))
+    coverageScore = np.sum(np.dot(unionIndices, frame_scores.T))
     return coverageScore
 
 # REPRESENTATIVENESS - [global features of segment frames are averaged]
