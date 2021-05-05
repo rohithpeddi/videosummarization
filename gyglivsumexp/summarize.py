@@ -73,20 +73,24 @@ def predict(test_files, weights, max_users=15):
         test_file_mat = loadmat(join(directoryPath, file_name))
         test_features = np.load(datasetRoot + 'feat/vgg/' + video_id + '.npy').astype(np.float32)
         frames, num_users = test_file_mat['user_score'].shape
+
+        randUser = random.sample(range(0, num_users), 1)
+        S, y_gt = create_vsum(test_features, test_file_mat, randUser)
+        objective_funcs = [obj.representativeness_shell(S), obj.uniformity_shell(S), obj.interestingness_shell(S)]
+        selected, score, minoux_bound = functions.leskovec_maximize(S, weights, objective_funcs, budget=S.budget)
+        selected = np.sort(selected)
+
+        predicted_labels = np.zeros(len(S.Y))
+        for idx in list(selected):
+            for j in range(seg_size):
+                # for j in range(1):
+                if idx + j < len(S.Y):
+                    predicted_labels[idx + j] = 1
+
         random_user_list = random.sample(range(0, num_users), max_users)
         for user in random_user_list:
-            print("Creating data for " + str(video_id) + ' with user summary ' + str(user))
+            # Use the prediction from this user and ground truth summaries from all other user summaries
             S, y_gt = create_vsum(test_features, test_file_mat, user)
-            objective_funcs = [obj.representativeness_shell(S), obj.uniformity_shell(S), obj.interestingness_shell(S)]
-            selected, score, minoux_bound = functions.leskovec_maximize(S, weights, objective_funcs, budget=S.budget)
-            selected = np.sort(selected)
-
-            predicted_labels = np.zeros(len(S.Y))
-            for idx in list(selected):
-                for j in range(seg_size):
-                # for j in range(1):
-                    if idx + j < len(S.Y):
-                        predicted_labels[idx + j] = 1
 
             ground_truth_labels = np.zeros(len(S.Y))
             for idx in list(y_gt):
@@ -96,7 +100,7 @@ def predict(test_files, weights, max_users=15):
             precision = precision_score(ground_truth_labels, predicted_labels, average="macro")
             recall = recall_score(ground_truth_labels, predicted_labels, average="macro")
 
-            print(F1, recall)
+            print("USER: " + str(user) + ', F1 : ' + str(F1) + ', recall : ' + str(recall))
 
             F1_list.append(F1)
             precision_list.append(precision)
@@ -123,8 +127,8 @@ def create_vsum(features, mat_file, user):
     diff = np.abs(len(y_gt) - features_length)
 
     y_gt = y_gt[diff:]
-    frames_length = len(y_gt)
-    Y = np.ones(frames_length)
+    num_frames = len(y_gt)
+    Y = np.ones(num_frames)
 
     y_gt = np.squeeze(np.argwhere(y_gt > 0))
     gt = y_gt
@@ -133,7 +137,7 @@ def create_vsum(features, mat_file, user):
     gt = np.squeeze(np.argwhere(y_gt % 5 == 0))
     budget = int((0.15*num_frames)/seg_size)
 
-    print("Budget size for the summary of video " + str(budget))
+    # print("Budget size for the summary of video " + str(budget))
 
     gt_score = np.squeeze(mat_file['gt_score'])[diff:]
 
@@ -158,17 +162,39 @@ for it in range(max_iterations):
             np.random.shuffle(data_files)
             test_files = data_files
             if shell_index == 0:
+                print("-------------------- OBJ : REPRESENTATIVENESS ----------------------------")
                 weights = [1, 0, 0]
                 F1r_list, pr_list, rr_list = predict(test_files, weights)
+                print("STATISTICS: ")
+                print("F1 : Mean " + np.array(F1r_list).mean() + ", Variance : " + np.array(F1r_list))
+                print("Precision : Mean " + np.array(pr_list).mean() + ", Variance : " + np.array(pr_list))
+                print("Recall : Mean " + np.array(rr_list).mean() + ", Variance : " + np.array(rr_list))
             elif shell_index == 1:
+                print("-------------------- OBJ : UNIFORMITY ----------------------------")
                 weights = [0, 1, 0]
                 F1u_list, pu_list, ru_list = predict(test_files, weights)
+                print("STATISTICS: ")
+                print("F1 : Mean " + np.array(F1u_list).mean() + ", Variance : " + np.array(ru_list))
+                print("Precision : Mean " + np.array(F1u_list).mean() + ", Variance : " + np.array(ru_list))
+                print("Recall : Mean " + np.array(F1u_list).mean() + ", Variance : " + np.array(ru_list))
             else:
+                print("-------------------- OBJ : INTERESTINGNESS ----------------------------")
                 weights = [0, 0, 1]
                 F1i_list, pi_list, ri_list = predict(test_files, weights)
+                print("STATISTICS: ")
+                print("F1 : Mean " + np.array(F1i_list).mean() + ", Variance : " + np.array(ri_list))
+                print("Precision : Mean " + np.array(F1i_list).mean() + ", Variance : " + np.array(ri_list))
+                print("Recall : Mean " + np.array(F1i_list).mean() + ", Variance : " + np.array(ri_list))
         else:
+            print("-------------------- OBJ : COMBINED ----------------------------")
             training_files = data_files[:20]
             test_files = data_files[20:]
             learnt_weights = train(training_files)
             # test on the rest of 5 videos
             F1c_list, pc_list, rc_list = predict(test_files, learnt_weights)
+            print("STATISTICS: ")
+            print("F1 : Mean " + np.array(F1c_list).mean() + ", Variance : " + np.array(rc_list))
+            print("Precision : Mean " + np.array(F1c_list).mean() + ", Variance : " + np.array(rc_list))
+            print("Recall : Mean " + np.array(F1c_list).mean() + ", Variance : " + np.array(rc_list))
+
+

@@ -66,7 +66,7 @@ def lazy_greedy_maximize(subFunData, w, subFunVector, budget, lossFun=None, useC
             if useCost:
                 t_marg = ((np.dot(w, utils.evalSubFun(subFunVector, cand, False, w)) + lossFun(subFunData, cand)) - currScore) / float(costs[delta_indices[0]])
             else:
-                t_marg = (np.dot(w, utils.evalSubFun(subFunVector, cand, False, w)) + lossFun(subFunData,cand) - currScore)
+                t_marg = (np.dot(w, utils.evalSubFun(subFunVector, cand, False, w)) + lossFun(subFunData, cand) - currScore)
 
             if not skipAssertions:
                 assert delta[delta_indices[0]] - t_marg >= -10 ** -5, ('%s: Non-submodular objective at element %d!: Now: %.3f; Before: %.3f' % (type, delta_indices[0], t_marg, delta[delta_indices[0]]))
