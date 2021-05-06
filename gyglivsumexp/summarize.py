@@ -36,7 +36,7 @@ def evaluate(predicted, user_summary):
     return F1, precision, recall
 
 
-def train(training_files, max_users=5):
+def train(training_files, max_users=1):
     training_examples = []
     for file_name in training_files:
         video_id = file_name[:-4]

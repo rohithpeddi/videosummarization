@@ -45,24 +45,23 @@ import numpy as np
 #
 # print(Avg_F1, Avg_precision, Avg_recall)
 
-rng_seed = 200
-seqDPP = SeqDppLinear(dataset='Youtube', rng_seed=rng_seed)
-print("-----------------------------------------------------------------")
-print("Start training!!")
-
-W, alpha, fval = seqDPP.train_dpp_linear_MLE()
-W = np.asarray(W)
-np.savetxt('w_you.csv', W, delimiter=',')
-print(str(alpha))
+# rng_seed = 200
+# seqDPP = SeqDppLinear(dataset='Youtube', rng_seed=rng_seed)
+# print("-----------------------------------------------------------------")
+# print("Start training!!")
+#
+# W, alpha, fval = seqDPP.train_dpp_linear_MLE()
+# W = np.asarray(W)
+# np.savetxt('w_you.csv', W, delimiter=',')
+# print(str(alpha))
 
 F1s = []
 pre = []
 rec = []
 for i in range(100):
-    rng_seed = rng_seed + np.random.randint(10)
     print("-----------------------------------------------------------------")
     print("-----------------------ITERATION + str(i)" + "--------------------")
-    print("seqDPP-linear on OVP")
+    print("seqDPP-linear on Youtube")
     seqDPP = SeqDppLinear(dataset='Youtube', rng_seed=rng_seed)
 
     print("-----------------------------------------------------------------")
@@ -81,6 +80,8 @@ for i in range(100):
     rec.append(recall)
     print('F-score, Recall, Precision: ')
     print(F1, precision, recall)
+
+    rng_seed = rng_seed + np.random.randint(10)
 
 print("STATISTICS: ")
 print("F1 : Mean " + str(np.array(F1s).mean() )+ ", Variance : " + str(np.array(F1s).var()))
