@@ -160,7 +160,7 @@ for it in range(max_iterations):
     np.random.shuffle(data_files)
     for shell_index in range(len(shell_types)):
         if shell_index < 3:
-            # np.random.shuffle(data_files)
+            np.random.shuffle(data_files)
             # test_files = data_files
             # if shell_index == 0:
             #     print("-------------------- OBJ : REPRESENTATIVENESS ----------------------------")
