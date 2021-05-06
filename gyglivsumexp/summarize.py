@@ -36,7 +36,7 @@ def evaluate(predicted, user_summary):
     return F1, precision, recall
 
 
-def train(training_files, max_users=10):
+def train(training_files, max_users=5):
     training_examples = []
     for file_name in training_files:
         video_id = file_name[:-4]
@@ -166,26 +166,32 @@ for it in range(max_iterations):
                 print("-------------------- OBJ : REPRESENTATIVENESS ----------------------------")
                 weights = [1, 0, 0]
                 F1r_list, pr_list, rr_list = predict(test_files, weights)
+                print("----------------------------------------------------------------------------")
                 print("STATISTICS: ")
                 print("F1 : Mean " + str(np.array(F1r_list).mean()) + ", Variance : " + str(np.array(F1r_list).var()))
                 print("Precision : Mean " + str(np.array(pr_list).mean()) + ", Variance : " + str(np.array(pr_list).var()))
-                print("Recall : Mean " + str(np.array(rr_list).mean() )+ ", Variance : " + str(np.array(rr_list).var()))
+                print("Recall : Mean " + str(np.array(rr_list).mean()) + ", Variance : " + str(np.array(rr_list).var()))
+                print("----------------------------------------------------------------------------")
             elif shell_index == 1:
                 print("-------------------- OBJ : UNIFORMITY ----------------------------")
                 weights = [0, 1, 0]
                 F1u_list, pu_list, ru_list = predict(test_files, weights)
+                print("----------------------------------------------------------------------------")
                 print("STATISTICS: ")
-                print("F1 : Mean " + str(np.array(F1u_list).mean()) + ", Variance : " + str(np.array(ru_list).var()))
-                print("Precision : Mean " + str(np.array(F1u_list).mean()) + ", Variance : " + str(np.array(ru_list).var()))
-                print("Recall : Mean " + str(np.array(F1u_list).mean()) + ", Variance : " + str(np.array(ru_list).var()))
+                print("F1 : Mean " + str(np.array(F1u_list).mean()) + ", Variance : " + str(np.array(F1u_list).var()))
+                print("Precision : Mean " + str(np.array(pu_list).mean()) + ", Variance : " + str(np.array(pu_list).var()))
+                print("Recall : Mean " + str(np.array(ru_list).mean()) + ", Variance : " + str(np.array(ru_list).var()))
+                print("----------------------------------------------------------------------------")
             else:
                 print("-------------------- OBJ : INTERESTINGNESS ----------------------------")
                 weights = [0, 0, 1]
                 F1i_list, pi_list, ri_list = predict(test_files, weights)
+                print("----------------------------------------------------------------------------")
                 print("STATISTICS: ")
-                print("F1 : Mean " + str(np.array(F1i_list).mean()) + ", Variance : " + str(np.array(ri_list).var()))
-                print("Precision : Mean " + str(np.array(F1i_list).mean()) + ", Variance : " + str(np.array(ri_list).var()))
-                print("Recall : Mean " + str(np.array(F1i_list).mean()) + ", Variance : " + str(np.array(ri_list).var()))
+                print("F1 : Mean " + str(np.array(F1i_list).mean()) + ", Variance : " + str(np.array(F1i_list).var()))
+                print("Precision : Mean " + str(np.array(pi_list).mean()) + ", Variance : " + str(np.array(pi_list).var()))
+                print("Recall : Mean " + str(np.array(ri_list).mean()) + ", Variance : " + str(np.array(ri_list).var()))
+                print("----------------------------------------------------------------------------")
         else:
             print("-------------------- OBJ : COMBINED ----------------------------")
             training_files = data_files[:20]
@@ -194,9 +200,10 @@ for it in range(max_iterations):
 
             # test on the rest of 5 videos
             F1c_list, pc_list, rc_list = predict(test_files, learnt_weights)
+            print("----------------------------------------------------------------------------")
             print("STATISTICS: ")
-            print("F1 : Mean " + str(np.array(F1c_list).mean()) + ", Variance : " + str(np.array(rc_list).var()))
-            print("Precision : Mean " + str(np.array(F1c_list).mean()) + ", Variance : " + str(np.array(rc_list).var()))
-            print("Recall : Mean " + str(np.array(F1c_list).mean()) + ", Variance : " + str(np.array(rc_list).var()))
-
+            print("F1 : Mean " + str(np.array(F1c_list).mean()) + ", Variance : " + str(np.array(F1c_list).var()))
+            print("Precision : Mean " + str(np.array(pc_list).mean()) + ", Variance : " + str(np.array(pc_list).var()))
+            print("Recall : Mean " + str(np.array(rc_list).mean()) + ", Variance : " + str(np.array(rc_list).var()))
+            print("----------------------------------------------------------------------------")
 
