@@ -1,42 +1,27 @@
 import pprint
-from torch.utils.data import DataLoader
-import h5py
-import torch
-import torch.nn as nn
-from collections import OrderedDict
-
 import json
 import csv
 import h5py
 import cv2
 import os
+import pdb
 import argparse
+import seaborn as sns
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 
 import torch
+import torch.nn as nn
 import torch.optim as optim
-
-from tensorboardX import SummaryWriter
-import numpy as np
-import json
-import os
-from tqdm import tqdm, trange
-import h5py
-from prettytable import PrettyTable
-
 from torchvision import transforms, models
-import torch
-from torch import nn
+
+from torch.utils.data import DataLoader
 from PIL import Image
 from pathlib import Path
-import cv2
-import h5py
-import numpy as np
-from tqdm import tqdm
-import argparse
-import pdb
+from collections import OrderedDict
+from tensorboardX import SummaryWriter
+from tqdm import tqdm, trange
+from prettytable import PrettyTable
 
 ####################################################################
 # -------------------------- CONFIG CLASS --------------------------
@@ -340,7 +325,6 @@ class FCSN(nn.Module):
 
 
 if __name__ == '__main__':
-    import torch
 
     net = FCSN()
     data = torch.randn((1, 1024, 320))
@@ -463,19 +447,6 @@ f_data.close()
 ####################################################################
 # ----------------------- TRAIN CLASS ----------------------
 ####################################################################
-
-import torch
-import torch.optim as optim
-
-from tensorboardX import SummaryWriter
-import numpy as np
-import json
-import os
-from tqdm import tqdm, trange
-import h5py
-from prettytable import PrettyTable
-
-
 
 class Solver(object):
     """Class that Builds, Trains FCSN model"""
