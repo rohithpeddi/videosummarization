@@ -195,8 +195,8 @@ for it in range(max_iterations):
                 print("----------------------------------------------------------------------------")
         else:
             print("-------------------- OBJ : COMBINED ----------------------------")
-            training_files = data_files[:20]
-            test_files = data_files[20:]
+            training_files = data_files[:10]
+            test_files = data_files[10:12]
             learnt_weights = train(training_files)
 
             # test on the rest of 5 videos

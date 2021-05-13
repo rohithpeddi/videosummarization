@@ -26,7 +26,7 @@ def interestingness_shell(sumData):
     sum_score = np.sum(frame_scores)
     budget = sumData.budget
     scores = frame_scores.copy()
-    max_score = -np.sum(np.sort(-scores)[:budget*5])
+    max_score = -np.sum(np.sort(-scores)[:budget])
     return lambda selectedIndices: weighted_coverage(selectedIndices, segment_size, frame_scores, max_score)
 
 
