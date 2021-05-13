@@ -5,7 +5,6 @@ import itertools
 import os
 import cv2
 import scipy.optimize as opt
-import subprocess
 import shutil
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, classification_report, confusion_matrix
 
@@ -13,6 +12,25 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_sc
 ###############################################################
 # --------------------- SEQ DPP LINEAR ------------------------
 ###############################################################
+
+def _map_ids_(ids, Y):
+    ids_y, Y_mapped, Y_ind = np.intersect1d(ids, Y, return_indices=True)
+    if len(Y_mapped) is not len(Y):
+        print("Error in map_ids: Y is out of ids")
+    return Y_mapped
+
+
+def _gen_seg_(num_frames, gt, seg_size):
+    Y_segments = []
+    ground_segments = []
+    num_segments = int(np.ceil(num_frames / seg_size))
+    for n in range(num_segments):
+        grounds_n = list(range(n * seg_size + 1, min((n + 1) * seg_size, num_frames) + 1))
+        ground_segments.append(grounds_n)
+        YsN = gt[(gt >= grounds_n[0]) & (gt <= grounds_n[len(grounds_n) - 1])]
+        Y_segments.append(YsN)
+    return Y_segments, ground_segments
+
 
 # Some func and data storage elements
 # 1. ids
@@ -23,57 +41,30 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_sc
 # 6. fishers
 # 7. YpredSeq
 # 8. Ypred
-class VideoData():
+class VideoData:
 
     def __init__(self, mat_data_element, seg_size, dataset):
         self.ids = list(range(len(np.squeeze(mat_data_element[2]))))
-        self.nFrames = len(self.ids)
-        self.Ys, self.grounds = _gen_seg_(self.nFrames,
-                                          _map_ids_(np.squeeze(mat_data_element[2]), np.squeeze(mat_data_element[1])),
-                                          seg_size)
-        self.videoId = mat_data_element[0][0][0]
+        self.num_frames = len(self.ids)
+        self.Y_segments, self.ground_segments = _gen_seg_(self.num_frames,
+                                                          _map_ids_(np.squeeze(mat_data_element[2]), np.squeeze(mat_data_element[1])),
+                                                          seg_size)
+        self.video_id = mat_data_element[0][0][0]
 
         if dataset == 'OVP':
-            saliency_score = loadmat(r"./oracle/feature/OVP_v" + str(self.videoId) + '/saliency.mat')['saliency_score']
-            context_score = loadmat(r"./oracle/feature/OVP_v" + str(self.videoId) + '/context2.mat')['context_score']
-            fishers = loadmat(r"./oracle/feature/OVP_v" + str(self.videoId) + '/fishers_PCA90.mat')['fishers']
+            saliency_score = loadmat(r"./oracle/feature/OVP_v" + str(self.video_id) + '/saliency.mat')['saliency_score']
+            context_score = loadmat(r"./oracle/feature/OVP_v" + str(self.video_id) + '/context2.mat')['context_score']
+            fishers = loadmat(r"./oracle/feature/OVP_v" + str(self.video_id) + '/fishers_PCA90.mat')['fishers']
         elif dataset == 'Youtube':
-            saliency_score = loadmat(r"./oracle/feature/Youtube_v" + str(self.videoId) + '/saliency.mat')[
+            saliency_score = loadmat(r"./oracle/feature/Youtube_v" + str(self.video_id) + '/saliency.mat')[
                 'saliency_score']
-            context_score = loadmat(r"./oracle/feature/Youtube_v" + str(self.videoId) + '/context2.mat')[
+            context_score = loadmat(r"./oracle/feature/Youtube_v" + str(self.video_id) + '/context2.mat')[
                 'context_score']
-            fishers = loadmat(r"./oracle/feature/Youtube_v" + str(self.videoId) + '/fishers_PCA90.mat')['fishers']
+            fishers = loadmat(r"./oracle/feature/Youtube_v" + str(self.video_id) + '/fishers_PCA90.mat')['fishers']
 
-        self.fts = np.concatenate((saliency_score, context_score, fishers), axis=1)
-        self.YpredSeq = []
-        self.Ypred = []
-
-
-def _map_ids_(ids, Y):
-    idsY, Y_mapped, Y_ind = np.intersect1d(ids, Y, return_indices=True)
-    if len(Y_mapped) is not len(Y):
-        print("Error in map_ids: Y is out of ids")
-    return Y_mapped
-
-
-def _gen_seg_(nFrames, gt, seg_size):
-    Ys = []
-    grounds = []
-    nSegments = int(np.ceil(nFrames / seg_size))
-    for n in range(nSegments):
-        groundsN = list(range(n * seg_size + 1, min((n + 1) * seg_size, nFrames) + 1))
-        grounds.append(groundsN)
-        YsN = gt[(gt >= groundsN[0]) & (gt <= groundsN[len(groundsN) - 1])]
-        Ys.append(YsN)
-    return Ys, grounds
-
-
-def _greedy_sym_(L):
-    N = len(L)
-    S = []
-    # for i in range(N):
-
-    return S
+        self.features = np.concatenate((saliency_score, context_score, fishers), axis=1)
+        self.Y_pred_seq = []
+        self.Y_pred = []
 
 
 def _initialize_videos_(seg_size, dataset, rng_seed):
@@ -112,7 +103,7 @@ def _initialize_videos_(seg_size, dataset, rng_seed):
 
     for t in range(len(Oracle_record)):
         video_data = VideoData(Oracle_record[t], seg_size, dataset)
-        if len(video_data.ids) is not len(video_data.fts):
+        if len(video_data.ids) is not len(video_data.features):
             print("Wrong video " + str(t))
         videos.append(video_data)
 
@@ -138,7 +129,7 @@ class SeqDppLinear:
     #    videos[k].fts: frames-by-dim
     #    videos[k].grounds: (seg_size)-by-(nFrames/seg_size)
     #    videos[k].Ys: (seg_size)-by-(nFrames/seg_size)
-    def train_dpp_linear_MLE(self):
+    def train_dpp_linear_mle(self):
         # Features
         cX = []
         # Ground sets
@@ -147,14 +138,14 @@ class SeqDppLinear:
         cY = []
         training_videos = [self.videos[i] for i in self.inds_tr]
         for i in range(len(training_videos)):
-            cXi = training_videos[i].fts
+            cXi = training_videos[i].features
             cGi = []
-            ciGrounds = training_videos[i].grounds
+            ciGrounds = training_videos[i].ground_segments
             for j in range(len(ciGrounds)):
                 cGij = _map_ids_(training_videos[i].ids, ciGrounds[j])
                 cGi.append(cGij)
             cYi = []
-            cYs = training_videos[i].Ys
+            cYs = training_videos[i].Y_segments
             for k in range(len(cYs)):
                 cYik = _map_ids_(training_videos[i].ids, cYs[k])
                 cYi.append(cYik)
@@ -162,7 +153,7 @@ class SeqDppLinear:
             cY.append(cYi)
             cG.append(cGi)
 
-        _, n = training_videos[0].fts.shape
+        _, n = training_videos[0].features.shape
         m = int(np.size(self.W) / n)
 
         theta_reg = np.zeros((m, n))
@@ -171,15 +162,20 @@ class SeqDppLinear:
         print("OPTIMIZATION BEGINS!!")
 
         # Minimize hinge loss
+        # theta0 = np.hstack((self.W.flatten(), self.alpha))
+        # options = {'disp':99, 'maxiter':500, 'maxfun': 200000, 'gtol': 1e-10, 'ftol': 1e-10, 'iprint':99}
+        # result = opt.minimize(self._compute_fg_, theta0, tol=1e-6, args=(cX, cG, cY, self.C, theta_reg), method='L-BFGS-B', options=options)
+
         theta0 = np.hstack((self.W.flatten(), self.alpha))
-        options = {'disp':99, 'maxiter':500, 'maxfun': 200000, 'gtol': 1e-10, 'ftol': 1e-10, 'iprint':99}
-        result = opt.minimize(self._compute_fg_, theta0, tol=1e-6, args=(cX, cG, cY, self.C, theta_reg), method='L-BFGS-B', options=options)
+        result = self._gd_accelerated_(theta0, 25000, 1, 10, cX, cG, cY, self.C, theta_reg)
+        # result = self.gd_armijo_v4(theta0, 250, 1, 5, cX, cG, cY, self.C, theta_reg, 1e-4)
+
 
         print("OPTIMIZATION ENDS!!")
         print("------------------------------------------------------------------------------------------")
 
-        theta = result.x
-
+        # theta = result.x
+        theta = result
         np.savetxt('theta.csv', np.array(theta), delimiter=',')
 
         # Recover W, V, alpha
@@ -193,6 +189,81 @@ class SeqDppLinear:
 
         return W, alpha, fval
 
+    def _gd_accelerated_(self, theta, maxEvals, verbosity, freq, cX, cG, cY, C, theta_reg):
+        [f, g] = self._compute_fg_(theta, cX, cG, cY, C, theta_reg)
+        function_evaluations = 1
+        lambda_prev = 0
+        lambda_curr = 1
+        beta = 1
+
+        x = theta
+        y_prev = x
+        # alpha = 1 / np.linalg.norm(g)
+        alpha = 1e-4
+        while True:
+            y_curr = x - alpha * g
+            x = (1 - beta) * y_curr + beta * y_prev
+            y_prev = y_curr
+
+            lambda_tmp = lambda_curr
+            lambda_curr = (1 + np.sqrt(1 + 4 * lambda_prev * lambda_prev)) / 2
+            lambda_prev = lambda_tmp
+            beta = (1 - lambda_prev) / lambda_curr
+
+            [f, g] = self._compute_fg_(x, cX, cG, cY, C, theta_reg)
+            function_evaluations += 1
+            optCond = np.linalg.norm(g, np.inf)
+
+            if ((verbosity > 0) and (function_evaluations % freq == 0)):
+                print(function_evaluations, alpha, f, optCond)
+            if (optCond < 1e-2) or (function_evaluations >= maxEvals):
+                break
+        return x
+
+    def gd_armijo_v4(self, theta, maxEvals, verbosity, freq, cX, cG, cY, C, theta_reg, gamma):
+        [f, g] = self._compute_fg_(theta, cX, cG, cY, C, theta_reg)
+        # alpha = 1 / np.linalg.norm(g)
+        alpha = 1
+        print("Initial alpha .. " + str(alpha))
+        functionEvaluations = 1
+        totalBackTracks = 0
+
+        w = theta
+        fOld = f
+        gOld = g
+        while True:
+            wTemp = w - alpha * g
+            [fTemp, gTemp] = self._compute_fg_(wTemp, cX, cG, cY, C, theta_reg)
+            functionEvaluations += 1
+            currentBackTracks = 0
+
+            while fTemp > f - gamma * alpha * np.dot(g.T, g):
+                alpha = alpha * alpha * np.dot(g.T, g) / (2 * (fTemp + np.dot(g.T, g) * alpha - f))
+                wTemp = w - alpha * g
+                [fTemp, gTemp] = self._compute_fg_(wTemp, cX, cG, cY, C, theta_reg)
+                functionEvaluations += 1
+                currentBackTracks += 1
+                totalBackTracks += 1
+                if (verbosity > 0) and (functionEvaluations % freq == 0):
+                    print("fEvals: " + str(functionEvaluations) + ", alpha = " + str(alpha) + ", fValue = " + str(f))
+
+            optimalityCondition = np.linalg.norm(g, np.inf)
+            if (verbosity > 0) and (functionEvaluations % freq == 0):
+                print("fEvals: " + str(functionEvaluations) + ", alpha = " + str(alpha) + ", fValue = " + str(
+                    f) + ", OptCond: " + str(optimalityCondition))
+            fOld = f
+            gOld = g
+            w = wTemp
+            f = fTemp
+            g = gTemp
+            if functionEvaluations > 2:
+                alpha = min(1, 2 * (fOld - f) / np.dot(g.T, g))
+            if (optimalityCondition < 1e-2) or (functionEvaluations > maxEvals):
+                break
+
+        return w
+
+
     def _compute_fg_(self, theta, cX, cG, cY, C, theta_reg):
 
         alpha = max(theta[len(theta) - 1], 1e-6)
@@ -205,23 +276,23 @@ class SeqDppLinear:
         # print("Processing videos : ")
 
         f = 0
-        # GW = np.zeros((m, n))
+        GW = np.zeros((m, n))
         galpha = 0
         for k in range(len(cX)):
             [fk, gWk, gAk] = self._compute_fg_one_data_(W, alpha, cX[k], cG[k], cY[k])
             f = f - fk
-            # GW = GW - gWk
-            # galpha = galpha - gAk
+            GW = GW - gWk
+            galpha = galpha - gAk
 
-        # g = GW
-        # g = np.hstack((np.array(g).flatten(), galpha[0, 0]))
+        g = GW
+        g = np.hstack((np.array(g).flatten(), galpha[0, 0]))
 
         if C != np.inf:
             diff = W.flatten() - theta_reg.flatten()
             f = C * f + 0.5 * (diff.conj().transpose() @ diff)
-            # g = C * g + np.hstack((diff, 0))
+            g = C * g + np.hstack((diff, 0))
 
-        return f
+        return f, g
 
     #  INPUT:
     #  theta: the parameter to learn
@@ -259,17 +330,18 @@ class SeqDppLinear:
             J = np.log(np.linalg.det(L[np.ix_(Y, Y)])) - np.log(np.linalg.det(L + Iv))
 
             # Compute gradients
-            # [g, gA] = self._compute_g_(W, X[0:len(V), :], L, Y, Iv)
+            [g, gA] = self._compute_g_(W, X[V, :], L, Y, Iv)
 
             # overall
             f = f + J
-            # gW = gW + g
-            # galpha = galpha + gA
+            gW = gW + g
+            galpha = galpha + gA
 
         return f, gW, galpha
 
     # gradient
     def _compute_g_(self, W, X, L, Y, Iv):
+
         # partial J / partial
         Ainv = np.linalg.inv(L + Iv)
 
@@ -277,7 +349,7 @@ class SeqDppLinear:
             LYinv = 0
         else:
             LYinv = np.zeros((len(L), len(L)))
-            LYinv[0:len(Y), 0:len(Y)] = np.linalg.inv(L[0:len(Y), 0:len(Y)])
+            LYinv[np.ix_(Y, Y)] = np.linalg.inv(L[np.ix_(Y, Y)])
 
         gL = LYinv - Ainv
         g = 2 * np.dot(np.dot(np.dot(W, X.conj().transpose()), gL), X)
@@ -289,14 +361,14 @@ class SeqDppLinear:
         Ls = []
         for i in range(len(videos)):
             print("TestDPP : " + str(i))
-            [videos[i].YpredSeq, videos[i].Ypred, Lsi] = self._predictY_inside_(videos[i], W, [], alpha, inf_type)
+            [videos[i].Y_pred_seq, videos[i].Y_pred, Lsi] = self._predictY_inside_(videos[i], W, [], alpha, inf_type)
             Ls.append(Lsi)
         return videos, Ls
 
     def _predictY_inside_(self, video, W, L, alpha, inf_type):
 
         if len(L) == 0:
-            X = video.fts
+            X = video.features
             WW = np.dot(W.conj().transpose(), W)
             L = np.dot(X, np.dot(WW, X.conj().transpose())) + alpha * np.identity(len(X))
 
@@ -304,8 +376,8 @@ class SeqDppLinear:
         L = (L + L.conj().transpose()) / 2
         # For dummy video segment
         Gs = [[]]
-        for n in range(len(video.grounds)):
-            Gsn = _map_ids_(video.ids, video.grounds[n])
+        for n in range(len(video.ground_segments)):
+            Gsn = _map_ids_(video.ids, video.ground_segments[n])
             Gs.append(Gsn)
 
         # For recording predicted results
@@ -420,7 +492,7 @@ class SeqDppLinear:
             directPath = folderName + '/' + videoName + '/' + approach_name
             os.makedirs(directPath)
 
-            frame_index = [frames_inds_frame_int[i] for i in videos[n].Ypred]
+            frame_index = [frames_inds_frame_int[i] for i in videos[n].Y_pred]
             # frame_index = inds_frame[videos[n].Ypred]
             for m in range(len(frame_index)):
                 cv2.imwrite(directPath + '/Frame' + str(frame_index[m]) + '.jpeg',
