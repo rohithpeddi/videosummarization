@@ -23,17 +23,21 @@ import numpy as np
 def interestingness_shell(sumData):
     frame_scores = sumData.getFrameScores()
     segment_size = sumData.seg_size
-    return lambda selectedIndices: weighted_coverage(selectedIndices, segment_size, frame_scores)
+    sum_score = np.sum(frame_scores)
+    budget = sumData.budget
+    scores = frame_scores.copy()
+    max_score = -np.sum(np.sort(-scores)[:budget*5])
+    return lambda selectedIndices: weighted_coverage(selectedIndices, segment_size, frame_scores, max_score)
 
 
-def weighted_coverage(selected_indices, segment_size, frame_scores):
+def weighted_coverage(selected_indices, segment_size, frame_scores, score):
     unionIndices = np.zeros(len(frame_scores))
     for si in selected_indices:
         for j in range(segment_size):
             if si + j < len(frame_scores):
                 unionIndices[si+j] = 1
     coverageScore = np.sum(np.dot(unionIndices, frame_scores.T))
-    return coverageScore
+    return coverageScore/score
 
 # REPRESENTATIVENESS - [global features of segment frames are averaged]
 

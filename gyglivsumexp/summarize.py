@@ -54,7 +54,7 @@ def train(training_files, max_users=1):
     print("Finished creation of training data")
 
     # Following the submodular functions shells and loss function from paper we get
-    params = utilities.SGDparams(use_l1_projection=False, max_iter=10, use_ada_grad=True)
+    params = utilities.SGDparams(use_l1_projection=False, max_iter=10, use_ada_grad=False)
 
     print("Started learning mixture weights:  ")
     learnt_weights, _ = functions.learnSubmodularMixture(training_examples, shells, loss, params=params)
@@ -136,8 +136,8 @@ def create_vsum(features, mat_file, user):
     # Approximately equivalent to sampling one frame for every 5 frames selected in the ground truth summary
     # Used to reduce the time for training
     gt = np.squeeze(np.argwhere(y_gt % 5 == 0))
-    budget = int(0.15 * mat_file['video_duration'][0][0]/seg_size)
-    # budget = int((0.15*num_frames)/seg_size)
+    # budget = int(0.15 * mat_file['video_duration'][0][0]/seg_size)
+    budget = int((0.15*num_frames)/seg_size)
 
     # print("Budget size for the summary of video " + str(budget))
 
